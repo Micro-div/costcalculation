@@ -1,0 +1,378 @@
+"use client";
+
+import { formatCompactCurrency, formatCurrency } from "@/lib";
+import type { EstimateResult as EstimateResultData } from "@/types";
+import { Icon } from "@/components/common/Icon";
+
+interface EstimateResultSectionProps {
+  estimate: EstimateResultData;
+  onSave: () => void;
+  onShare: () => void;
+  onOpenQuotation: () => void;
+  onNewEstimate: () => void;
+}
+
+export function EstimateResultSection({
+  estimate,
+  onSave,
+  onShare,
+  onOpenQuotation,
+  onNewEstimate,
+}: EstimateResultSectionProps) {
+  return (
+    <section
+      id="estimate-result"
+      className="scroll-mt-8 border-y border-[#e8e5ed] bg-white py-12 sm:py-20"
+    >
+      <div className="mx-auto max-w-[1200px] px-5 sm:px-7">
+        <div className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="inline-flex items-center gap-2 rounded-full bg-[#e9f8f0] px-3 py-1.5 text-xs font-bold text-[#198454]">
+              <Icon name="check" className="h-3.5 w-3.5" />
+              Estimate ready
+            </div>
+            <h2 className="mt-4 max-w-3xl text-3xl font-bold tracking-[-0.045em] text-[#201d27] sm:text-4xl">
+              {estimate.projectTitle}
+            </h2>
+            <p className="mt-2 text-sm text-[#77727e]">
+              {estimate.category.name} · {estimate.location.city},{" "}
+              {estimate.location.country} · {estimate.size.name} scope ·{" "}
+              {estimate.complexity} complexity
+            </p>
+            {estimate.description.trim() && (
+              <p className="mt-1.5 max-w-2xl truncate text-xs text-[#a19ba8]">
+                “{estimate.description.trim()}”
+              </p>
+            )}
+          </div>
+          <div className="flex flex-wrap gap-2.5 print:hidden">
+            <button
+              type="button"
+              onClick={onNewEstimate}
+              className="inline-flex min-h-[44px] items-center rounded-xl border border-[#ddd9e3] bg-white px-4 py-2.5 text-sm font-bold text-[#4f4a57] transition hover:bg-[#f7f6f8]"
+            >
+              New estimate
+            </button>
+            <button
+              type="button"
+              onClick={onSave}
+              className="inline-flex min-h-[44px] items-center rounded-xl border border-[#ddd9e3] bg-white px-4 py-2.5 text-sm font-bold text-[#4f4a57] transition hover:bg-[#f7f6f8]"
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              onClick={onShare}
+              className="inline-flex min-h-[44px] items-center rounded-xl border border-[#ddd9e3] bg-white px-4 py-2.5 text-sm font-bold text-[#4f4a57] transition hover:bg-[#f7f6f8]"
+            >
+              <span className="flex items-center gap-2">
+                <Icon name="share" className="h-4 w-4" />
+                Share
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={onOpenQuotation}
+              className="flex min-h-[44px] items-center gap-2 rounded-xl bg-[#6754e7] px-4 py-2.5 text-sm font-bold text-white shadow-[0_8px_20px_rgba(103,84,231,0.22)] transition hover:bg-[#5946d3]"
+            >
+              <Icon name="file-text" className="h-4 w-4" />
+              Create quotation
+            </button>
+          </div>
+        </div>
+
+        <div className="grid gap-5 lg:grid-cols-[1.12fr_0.88fr]">
+          <div className="result-summary relative overflow-hidden rounded-[24px] bg-[#1c1923] p-6 text-white shadow-[0_22px_50px_rgba(31,27,40,0.17)] sm:p-8">
+            <div className="absolute -right-16 -top-20 h-56 w-56 rounded-full bg-[#725ce5]/25 blur-3xl" />
+            <div className="absolute -bottom-24 left-20 h-52 w-52 rounded-full bg-[#35b98d]/15 blur-3xl" />
+            <div className="relative">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#bdb5dc]">
+                Expected investment
+              </p>
+              <p className="mt-3 text-3xl font-bold tracking-[-0.05em] sm:text-5xl">
+                {formatCurrency(estimate.total, estimate.location)}
+              </p>
+              <p className="mt-2 text-sm text-[#aaa5b3]">
+                A typical project total, including contingency and estimated
+                taxes
+              </p>
+
+              <div className="mt-9 grid grid-cols-[1fr_auto_1fr_auto_1fr] items-center gap-2">
+                <div className="min-w-0">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#928ca0]">
+                    Low
+                  </p>
+                  <p className="mt-1 text-base font-bold sm:text-lg">
+                    {formatCompactCurrency(estimate.low, estimate.location)}
+                  </p>
+                </div>
+                <div className="h-px w-5 bg-white/15 sm:w-10" />
+                <div className="min-w-0 text-center">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#b9afe4]">
+                    Typical
+                  </p>
+                  <p className="mt-1 text-base font-bold text-[#d7cef8] sm:text-lg">
+                    {formatCompactCurrency(estimate.total, estimate.location)}
+                  </p>
+                </div>
+                <div className="h-px w-5 bg-white/15 sm:w-10" />
+                <div className="min-w-0 text-right">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#928ca0]">
+                    High
+                  </p>
+                  <p className="mt-1 text-base font-bold sm:text-lg">
+                    {formatCompactCurrency(estimate.high, estimate.location)}
+                  </p>
+                </div>
+              </div>
+              <div className="mt-3 h-2 rounded-full bg-white/10">
+                <div className="relative mx-auto h-full w-2/3 rounded-full bg-gradient-to-r from-[#725ce5] to-[#4fd0a5]">
+                  <span className="absolute left-1/2 top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-[3px] border-[#1c1923] bg-white" />
+                </div>
+              </div>
+              <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-white/10 pt-5 text-xs text-[#aaa5b3]">
+                <span className="flex items-center gap-1.5">
+                  <Icon name="globe" className="h-4 w-4 text-[#9481ef]" />
+                  {estimate.location.currency} pricing
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Icon name="clock" className="h-4 w-4 text-[#9481ef]" />
+                  {estimate.durationMin}–{estimate.durationMax} weeks
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <Icon name="shield" className="h-4 w-4 text-[#4fd0a5]" />
+                  {estimate.confidence}% confidence
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-[#e7e4eb] bg-[#fbfafc] p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-[#2b2732]">
+                  Estimate confidence
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[#817c88]">
+                  Based on project detail, scope and local pricing.
+                </p>
+              </div>
+              <span
+                className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                  estimate.confidence >= 70
+                    ? "bg-[#e5f6ed] text-[#198454]"
+                    : estimate.confidence >= 50
+                      ? "bg-[#fff4e0] text-[#a8741a]"
+                      : "bg-[#fbe9e7] text-[#b4402e]"
+                }`}
+              >
+                {estimate.confidence >= 70
+                  ? "High"
+                  : estimate.confidence >= 50
+                    ? "Medium"
+                    : "Low"}
+              </span>
+            </div>
+            <div className="mt-6 flex items-end gap-3">
+              <p className="text-4xl font-bold tracking-[-0.05em] text-[#27232e]">
+                {estimate.confidence}%
+              </p>
+              <p className="pb-1 text-xs text-[#918c97]">
+                confidence score
+              </p>
+            </div>
+            <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-[#e9e6ec]">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#6a56df] to-[#4bc59c]"
+                style={{ width: `${estimate.confidence}%` }}
+              />
+            </div>
+            {estimate.confidence < 50 && (
+              <p className="mt-3 rounded-xl border border-[#f3d9c8] bg-[#fff6ee] px-3 py-2 text-[11px] font-medium leading-5 text-[#a05a2c]">
+                Low detail — add more about features, platform and users to
+                sharpen this estimate.
+              </p>
+            )}
+            <div className="mt-6 grid grid-cols-2 gap-3">
+              <div className="rounded-2xl border border-[#e7e3eb] bg-white p-3.5">
+                <Icon name="layers" className="h-4 w-4 text-[#6c57db]" />
+                <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#9a95a0]">
+                  Scope
+                </p>
+                <p className="mt-1 text-sm font-bold text-[#38343f]">
+                  {estimate.size.name}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-[#e7e3eb] bg-white p-3.5">
+                <Icon name="sparkles" className="h-4 w-4 text-[#39997b]" />
+                <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[#9a95a0]">
+                  Quality
+                </p>
+                <p className="mt-1 text-sm font-bold text-[#38343f]">
+                  {estimate.quality.name}
+                </p>
+              </div>
+            </div>
+            <p className="mt-5 flex items-center gap-1.5 text-[10px] font-medium text-[#9a95a0]">
+              <Icon name="clock" className="h-3.5 w-3.5" />
+              Pricing data updated September 2026
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          <div className="rounded-[24px] border border-[#e7e4eb] bg-white p-5 shadow-[0_8px_30px_rgba(34,29,49,0.04)] sm:p-7">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold tracking-[-0.03em] text-[#292530]">
+                  Cost breakdown
+                </h3>
+                <p className="mt-1 text-xs text-[#8a8590]">
+                  Transparent estimate by workstream
+                </p>
+              </div>
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#f0edff] text-[#6652ce]">
+                <Icon name="calculator" />
+              </span>
+            </div>
+            <div className="mt-6 space-y-4">
+              {estimate.items.map((item) => {
+                const amount = item.quantity * item.rate;
+                const percentage = (amount / estimate.subtotal) * 100;
+                return (
+                  <div key={item.name}>
+                    <div className="mb-2 flex items-center justify-between gap-4 text-sm">
+                      <div>
+                        <p className="font-semibold text-[#3a3641]">
+                          {item.name}
+                        </p>
+                        <p className="mt-0.5 text-[10px] text-[#96919b]">
+                          {percentage.toFixed(0)}% of work costs
+                        </p>
+                      </div>
+                      <p className="font-bold text-[#34303b]">
+                        {formatCurrency(amount, estimate.location)}
+                      </p>
+                    </div>
+                    <div className="h-1.5 overflow-hidden rounded-full bg-[#f0edf2]">
+                      <div
+                        className="h-full rounded-full bg-[#7560e5]"
+                        style={{ width: `${Math.max(8, percentage)}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-6 space-y-2.5 border-t border-[#ece9ef] pt-5 text-sm">
+              <div className="flex justify-between text-[#77727e]">
+                <span>Contingency (5%)</span>
+                <span className="font-semibold text-[#4c4853]">
+                  {formatCurrency(estimate.contingency, estimate.location)}
+                </span>
+              </div>
+              <div className="flex justify-between text-[#77727e]">
+                <span>
+                  Taxes & fees (
+                  {(estimate.location.taxRate * 100).toFixed(
+                    (estimate.location.taxRate * 100) % 1 ? 2 : 0,
+                  )}
+                  %)
+                </span>
+                <span className="font-semibold text-[#4c4853]">
+                  {formatCurrency(estimate.taxes, estimate.location)}
+                </span>
+              </div>
+              <div className="flex justify-between pt-2 text-base font-bold text-[#2b2732]">
+                <span>Estimated total</span>
+                <span>
+                  {formatCurrency(estimate.total, estimate.location)}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-[24px] border border-[#e7e4eb] bg-white p-5 shadow-[0_8px_30px_rgba(34,29,49,0.04)] sm:p-7">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold tracking-[-0.03em] text-[#292530]">
+                  Suggested scope of work
+                </h3>
+                <p className="mt-1 text-xs text-[#8a8590]">
+                  A practical starting point for your project
+                </p>
+              </div>
+              <span className="grid h-10 w-10 place-items-center rounded-xl bg-[#e9f8f1] text-[#29926c]">
+                <Icon name="check" />
+              </span>
+            </div>
+            <div className="mt-6 space-y-3">
+              {estimate.scope.map((item, index) => (
+                <div
+                  key={item}
+                  className="flex items-start gap-3 rounded-2xl bg-[#faf9fb] p-3.5"
+                >
+                  <span className="grid h-6 w-6 shrink-0 place-items-center rounded-lg bg-white text-[10px] font-bold text-[#6a55d7] shadow-sm">
+                    {index + 1}
+                  </span>
+                  <p className="pt-0.5 text-sm font-medium leading-5 text-[#514c58]">
+                    {item}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <div className="mt-6 rounded-2xl border border-[#f0dfbd] bg-[#fffaf0] p-4">
+              <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.1em] text-[#9a681c]">
+                <Icon name="shield" className="h-4 w-4" />
+                Key assumptions
+              </p>
+              <ul className="mt-3 space-y-2">
+                {estimate.assumptions.slice(0, 4).map((item) => (
+                  <li
+                    key={item}
+                    className="flex items-start gap-2 text-xs leading-5 text-[#746657]"
+                  >
+                    <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-[#c5913f]" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-5 flex flex-col gap-4 rounded-[22px] border border-[#e8e4ed] bg-[#f8f7fa] p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
+          <div className="flex items-start gap-3">
+            <span className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white text-[#6a55d7] shadow-sm">
+              <Icon name="file-text" className="h-4 w-4" />
+            </span>
+            <div>
+              <p className="text-sm font-bold text-[#35313c]">
+                Ready to send this to a client?
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[#7e7985]">
+                Create an editable quotation, adjust line items and save it as
+                a PDF.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenQuotation}
+            className="flex min-h-[44px] shrink-0 items-center justify-center gap-2 rounded-xl bg-[#6754e7] px-5 py-3 text-sm font-bold text-white shadow-[0_8px_20px_rgba(103,84,231,0.2)] transition hover:bg-[#5946d3] print:hidden"
+          >
+            <Icon name="file-text" className="h-4 w-4" />
+            Build quotation
+          </button>
+        </div>
+
+        <p className="mt-5 text-center text-[11px] leading-5 text-[#96919c]">
+          This result is a preliminary market estimate based on the
+          information provided and available pricing data. It is not a
+          legally binding quotation. Final prices may change after
+          professional review and confirmation.
+        </p>
+      </div>
+    </section>
+  );
+}
