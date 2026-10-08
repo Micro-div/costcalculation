@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { formatCompactCurrency, formatCurrency } from "@/lib";
+import { formatCompactCurrency, formatCurrency, formatDurationRange } from "@/lib";
 import type { EstimateResult } from "@/types";
 import { Icon } from "@/components/common/Icon";
 
@@ -96,7 +96,7 @@ export function ShareModal({
   const total = formatCurrency(estimate.total, estimate.location);
   const range = `${formatCompactCurrency(estimate.low, estimate.location)}–${formatCompactCurrency(estimate.high, estimate.location)}`;
   const subject = `${estimate.projectTitle} estimate: ${total}`;
-  const message = `${estimate.projectTitle}: estimated at ${total} (range ${range}), about ${estimate.durationMin}–${estimate.durationMax} weeks in ${estimate.location.city}. See the full estimate:`;
+  const message = `${estimate.projectTitle}: estimated at ${total} (range ${range}), about ${formatDurationRange(estimate.durationMin, estimate.durationMax, estimate.durationUnit)} in ${estimate.location.city}. See the full estimate:`;
   const messageWithLink = `${message} ${shareUrl}`;
 
   useEffect(() => {

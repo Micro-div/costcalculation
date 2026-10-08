@@ -13,6 +13,27 @@ export interface AiCostComponent {
   note: string;
 }
 
+// The AI's own real-world market price range for the user's location, in USD,
+// BEFORE the contingency and taxes we add on top. Never taken from the preset
+// category ranges — those are not even sent to the model.
+export interface AiPricing {
+  low: number;
+  typical: number;
+  high: number;
+}
+
+export type AiTimelineUnit = "weeks" | "months" | "years";
+
+// Realistic calendar duration for the project type the AI chose: months or
+// years for physical builds, weeks or months for software and services.
+export interface AiDuration {
+  min: number;
+  max: number;
+  unit: AiTimelineUnit;
+}
+
+export type AiProjectKind = "physical" | "software" | "service";
+
 import type { ScopeItem } from "@/types";
 
 export interface AiAnalysisPayload {
@@ -26,14 +47,19 @@ export interface AiAnalysisPayload {
   assumptions?: string[];
   components?: AiCostComponent[];
   scope?: ScopeItem[];
+  kind?: AiProjectKind;
+  pricing?: AiPricing;
+  duration?: AiDuration;
   source?: "ai" | "fallback";
   model?: string | null;
 }
 
-const CACHE_KEY = "costcalc-ai-analysis-v3";
+const CACHE_KEY = "costcalc-ai-analysis-v4";
 const CACHE_MAX_ENTRIES = 50;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
-const REQUEST_TIMEOUT_MS = 25000;
+// The server may re-ask the model once when a physical project comes back
+// priced implausibly low, so allow for two model round-trips.
+const REQUEST_TIMEOUT_MS = 40000;
 
 interface CacheEntry {
   savedAt: number;
@@ -73,9 +99,59 @@ function isValidScopeItem(value: unknown): value is ScopeItem {
   );
 }
 
+const AI_KINDS: AiProjectKind[] = ["physical", "software", "service"];
+const AI_TIMELINE_UNITS: AiTimelineUnit[] = ["weeks", "months", "years"];
+
+// Accepts the model's low/typical/high triple, fixing only an out-of-order
+// range so the UI can never show low > high.
+function sanitizePricing(value: unknown): AiPricing | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const v = value as Partial<AiPricing>;
+  const low = Number(v.low);
+  const typical = Number(v.typical);
+  const high = Number(v.high);
+  if (![low, typical, high].every((n) => Number.isFinite(n) && n > 0)) {
+    return undefined;
+  }
+  return { low: Math.min(low, typical), typical, high: Math.max(high, typical) };
+}
+
+function sanitizeDuration(value: unknown): AiDuration | undefined {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+  const v = value as Partial<AiDuration>;
+  let min = Math.round(Number(v.min));
+  let max = Math.round(Number(v.max));
+  if (!Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || max <= 0) {
+    return undefined;
+  }
+  if (min > max) [min, max] = [max, min];
+  const unit = AI_TIMELINE_UNITS.includes(v.unit as AiTimelineUnit)
+    ? (v.unit as AiTimelineUnit)
+    : "weeks";
+  return { min, max, unit };
+}
+
 function isValidPayload(value: unknown): value is AiAnalysisPayload {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Partial<AiAnalysisPayload>;
+  // The server may send explicit nulls for the optional AI-only fields.
+  const raw = value as Record<string, unknown>;
+  const kindOk =
+    raw.kind === undefined ||
+    raw.kind === null ||
+    (typeof raw.kind === "string" && AI_KINDS.includes(raw.kind as AiProjectKind));
+  const pricingOk =
+    raw.pricing === undefined ||
+    raw.pricing === null ||
+    sanitizePricing(raw.pricing) !== undefined;
+  const durationOk =
+    raw.duration === undefined ||
+    raw.duration === null ||
+    sanitizeDuration(raw.duration) !== undefined;
   return (
     typeof v.category === "string" &&
     typeof v.projectType === "string" &&
@@ -93,6 +169,9 @@ function isValidPayload(value: unknown): value is AiAnalysisPayload {
         v.assumptions.every((a) => typeof a === "string"))) &&
     (v.scope === undefined ||
       (Array.isArray(v.scope) && v.scope.every(isValidScopeItem))) &&
+    kindOk &&
+    pricingOk &&
+    durationOk &&
     (v.source === undefined || v.source === "ai" || v.source === "fallback") &&
     (v.model === undefined || v.model === null || typeof v.model === "string")
   );
@@ -158,11 +237,24 @@ function pruneCache(): void {
   }
 }
 
+// Cache key includes the location: the AI prices the project at real-world
+// market cost for the user's location, so the same words in another country
+// must produce a different (not cached) analysis.
+function cacheKey(
+  description: string,
+  locationId?: string | null,
+): string | null {
+  const text = normalizeDescriptionText(description);
+  if (!text) return null;
+  return `${String(locationId ?? "").trim().toLowerCase()}|${text}`;
+}
+
 export function getCachedAiAnalysis(
   description: string,
+  locationId?: string | null,
 ): AiAnalysisPayload | null {
   readStorage();
-  const key = normalizeDescriptionText(description);
+  const key = cacheKey(description, locationId);
   if (!key) return null;
   const entry = memoryCache.get(key);
   if (!entry) return null;
@@ -176,11 +268,12 @@ export function getCachedAiAnalysis(
 
 export async function fetchAiAnalysis(
   description: string,
+  locationId?: string | null,
 ): Promise<AiAnalysisPayload | null> {
-  const key = normalizeDescriptionText(description);
+  const key = cacheKey(description, locationId);
   if (!key) return null;
 
-  const cached = getCachedAiAnalysis(description);
+  const cached = getCachedAiAnalysis(description, locationId);
   if (cached) return cached;
 
   // Same input already in flight — share it instead of calling the API twice.
@@ -194,7 +287,10 @@ export async function fetchAiAnalysis(
       const res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description }),
+        body: JSON.stringify({
+          description,
+          ...(locationId ? { locationId } : {}),
+        }),
         signal: controller.signal,
       });
       if (!res.ok) {
@@ -243,6 +339,18 @@ export async function fetchAiAnalysis(
           : {}),
         ...(typeof data.model === "string" || data.model === null
           ? { model: data.model }
+          : {}),
+        ...(typeof data.kind === "string" &&
+        AI_KINDS.includes(data.kind as AiProjectKind)
+          ? { kind: data.kind as AiProjectKind }
+          : {}),
+        // The AI's own real-world price range and timeline (sanitized again
+        // here because the stored payload may predate the current schema).
+        ...(sanitizePricing(data.pricing)
+          ? { pricing: sanitizePricing(data.pricing) as AiPricing }
+          : {}),
+        ...(sanitizeDuration(data.duration)
+          ? { duration: sanitizeDuration(data.duration) as AiDuration }
           : {}),
       };
       // Only cache real AI results. Fallbacks are returned to the caller

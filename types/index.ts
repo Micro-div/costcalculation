@@ -18,6 +18,10 @@ export type CurrencyCode = (typeof allCurrencies)[number];
 
 export type Stage = "describe" | "questions" | "complete";
 
+// How a timeline is measured: weeks for software/services, months or years
+// for physical builds (chosen by the AI for the project type).
+export type TimelineUnit = "weeks" | "months" | "years";
+
 export type IconName =
   | "arrow-right"
   | "bot"
@@ -69,6 +73,10 @@ export interface ScopeItem {
 
 export interface EstimateResult {
   projectTitle: string;
+  // The AI's own project type for this description, shown in the subtitle in
+  // place of the preset category (e.g. "Zoo / Wildlife Park Development").
+  // Null when the AI was unavailable and the rule-based preset was used.
+  projectTypeLabel?: string | null;
   description: string;
   category: Category;
   location: Location;
@@ -85,6 +93,7 @@ export interface EstimateResult {
   confidence: number;
   durationMin: number;
   durationMax: number;
+  durationUnit?: TimelineUnit;
   scope: ScopeItem[];
   assumptions: string[];
   risks: string[];

@@ -15,14 +15,20 @@ import type {
   ProjectSizeId,
   QualityId,
   ScopeItem,
+  TimelineUnit,
 } from "@/types";
 import { analyzeProjectWithAi } from "./analyzeProject";
 import type { AiAnalysisPayload, AiCostComponent } from "./aiAnalysis";
 
 // Turns the AI-provided cost components into authoritative breakdown rows:
-// their costs are re-scaled so they always add up to our computed subtotal,
+// their costs are re-scaled so they always add up to the computed subtotal,
 // and percentages are derived from the final costs. Returns undefined when
 // the AI didn't provide usable components (caller falls back to `items`).
+//
+// The AI's REAL amounts win whenever most components carry one: those are the
+// market costs for the user's location, and rounded percentages ("2%" on a
+// 2.4% line) must not silently rewrite them. The percentage split is only
+// used when the amounts are missing or zero.
 function buildCostComponents(
   raw: AiCostComponent[] | undefined,
   subtotal: number,
@@ -41,11 +47,15 @@ function buildCostComponents(
   );
   if (usable.length === 0) return undefined;
 
+  const positiveCosts = usable.filter((c) => c.cost > 0).length;
   const percentagesUsable = usable.every((c) => c.percentage > 0);
-  const costsUsable = usable.some((c) => c.cost > 0);
-  const weights = usable.map((c) =>
-    percentagesUsable ? c.percentage : costsUsable ? c.cost : 1,
-  );
+  const useCosts =
+    positiveCosts >= Math.max(2, Math.ceil(usable.length / 2)) ||
+    !percentagesUsable;
+  let weights = usable.map((c) => (useCosts ? c.cost : c.percentage));
+  if (weights.reduce((sum, w) => sum + w, 0) <= 0) {
+    weights = usable.map((c) => (c.percentage > 0 ? c.percentage : 1));
+  }
   const weightSum = weights.reduce((sum, w) => sum + w, 0);
   if (weightSum <= 0) return undefined;
 
@@ -102,6 +112,36 @@ function buildGenericComponents(
 
 export function roundMoney(value: number) {
   return Math.round(value);
+}
+
+const DURATION_LABELS: Record<
+  TimelineUnit,
+  { one: string; many: string; oneShort: string; manyShort: string }
+> = {
+  weeks: { one: "week", many: "weeks", oneShort: "wk", manyShort: "wks" },
+  months: { one: "month", many: "months", oneShort: "mo", manyShort: "mo" },
+  years: { one: "year", many: "years", oneShort: "yr", manyShort: "yrs" },
+};
+
+// "3–4 weeks", "14–22 months", "2–3 years" (or the short forms "3–4 wks").
+// The unit comes from the AI's timeline for the project type, so physical
+// builds read in months/years instead of weeks.
+export function formatDurationRange(
+  min: number,
+  max: number,
+  unit: TimelineUnit = "weeks",
+  short = false,
+): string {
+  const labels = DURATION_LABELS[unit] ?? DURATION_LABELS.weeks;
+  const lo = Math.round(min);
+  const hi = Math.round(max);
+  if (!Number.isFinite(lo) || !Number.isFinite(hi) || lo <= 0 || hi <= 0) {
+    return "";
+  }
+  const many = short ? labels.manyShort : labels.many;
+  const one = short ? labels.oneShort : labels.one;
+  if (lo === hi) return `${lo} ${lo === 1 ? one : many}`;
+  return `${lo}–${Math.max(lo, hi)} ${many}`;
 }
 
 export function formatCurrency(value: number, location: Location) {
@@ -161,9 +201,10 @@ export function calculateEstimate(
   currencyOverride?: CurrencyCode | null,
   aiAnalysis?: AiAnalysisPayload | null,
 ): EstimateResult {
-  // The optional AI result only supplies category/features/complexity/subject/
-  // heading/confidence; every price below is still computed from the static
-  // USD config (PROJECT_TYPES / FEATURES / COMPLEXITY in analyzeProject.js).
+  // The optional AI result supplies the project type, features, complexity,
+  // subject/heading/confidence AND — when available — its own real-world
+  // pricing (low/typical/high in USD for the user's location) and timeline.
+  // Preset price ranges are never sent to the AI and never override it.
   const analysis = analyzeProjectWithAi(description, aiAnalysis);
   const category =
     categories.find((item) => item.id === categoryId) ?? categories[0];
@@ -177,34 +218,90 @@ export function calculateEstimate(
   const quality =
     qualityOptions.find((item) => item.id === qualityId) ?? qualityOptions[1];
 
-  // New analyzer-driven base price; country, size and quality multipliers
-  // (and later the currency conversion, contingency and tax) still apply.
+  // Fallback pricing multiplier (country x size x quality), used only when
+  // the AI did not price the project itself.
   const multiplier = location.multiplier * size.multiplier * quality.multiplier;
-  const items: EstimateItem[] = analysis.lines.map((line) => ({
-    name: line.label,
-    detail: line.detail,
-    quantity: 1,
-    rate: roundMoney(line.usd * multiplier * fx),
-  }));
-  const subtotal = items.reduce(
-    (sum, item) => sum + item.quantity * item.rate,
-    0,
-  );
-  const components =
-    buildCostComponents(aiAnalysis?.components, subtotal) ??
-    buildGenericComponents(subtotal);
+  const aiPricing = analysis.aiPricing;
+  // Only the user's chosen size and quality adjust an AI-priced project: the
+  // AI already priced it at real-world market cost for THIS location, so the
+  // location multiplier must not be applied a second time.
+  const sizeQuality = size.multiplier * quality.multiplier;
+
+  let items: EstimateItem[];
+  let components: EstimateResult["components"];
+  let subtotal: number;
+
+  if (aiPricing) {
+    // REAL-WORLD PATH: the AI's own typical market cost for the location.
+    subtotal = roundMoney(aiPricing.typical * sizeQuality * fx);
+    components =
+      buildCostComponents(aiAnalysis?.components, subtotal) ??
+      buildGenericComponents(subtotal);
+    // The breakdown table and the quotation mirror the AI's component split
+    // (land, enclosures, animals, labour...) instead of preset software lines.
+    items = (components ?? []).map((component) => ({
+      name: component.name,
+      detail: component.note || "Included in the project cost",
+      quantity: 1,
+      rate: component.cost,
+    }));
+    if (items.length === 0) {
+      items = [
+        {
+          name: analysis.aiProjectType || analysis.projectType,
+          detail: "Total project cost",
+          quantity: 1,
+          rate: subtotal,
+        },
+      ];
+    }
+  } else {
+    // Fallback path: static USD config (PROJECT_TYPES / FEATURES x country,
+    // size and quality multipliers).
+    items = analysis.lines.map((line) => ({
+      name: line.label,
+      detail: line.detail,
+      quantity: 1,
+      rate: roundMoney(line.usd * multiplier * fx),
+    }));
+    subtotal = items.reduce(
+      (sum, item) => sum + item.quantity * item.rate,
+      0,
+    );
+    components =
+      buildCostComponents(aiAnalysis?.components, subtotal) ??
+      buildGenericComponents(subtotal);
+  }
+
   const contingency = roundMoney(subtotal * 0.05);
   const taxes = roundMoney((subtotal + contingency) * location.taxRate);
   const total = subtotal + contingency + taxes;
+
+  // Low/typical/high: from the AI's own range when it priced the project,
+  // scaled by the same size/quality/currency/contingency/tax factors as the
+  // total so the range always brackets it. Only the fallback derives them.
+  const low = aiPricing
+    ? roundMoney(aiPricing.low * sizeQuality * fx * 1.05 * (1 + location.taxRate))
+    : roundMoney(total * 0.88);
+  const high = aiPricing
+    ? roundMoney(aiPricing.high * sizeQuality * fx * 1.05 * (1 + location.taxRate))
+    : roundMoney(total * 1.17);
+
+  // Timeline: the AI's realistic duration for the project type (months or
+  // years for physical builds) when present, else the preset weeks estimate.
+  const aiDuration = analysis.aiDuration;
   const weekFactor = size.weekFactor * quality.weekFactor;
-  const durationMin = Math.max(
-    1,
-    Math.round(analysis.weeksMin * weekFactor),
-  );
-  const durationMax = Math.max(
-    durationMin + 1,
-    Math.round(analysis.weeksMax * weekFactor),
-  );
+  const durationMin = aiDuration
+    ? aiDuration.min
+    : Math.max(1, Math.round(analysis.weeksMin * weekFactor));
+  const durationMax = aiDuration
+    ? aiDuration.max
+    : Math.max(durationMin + 1, Math.round(analysis.weeksMax * weekFactor));
+  const durationUnit: TimelineUnit =
+    aiDuration && ["weeks", "months", "years"].includes(aiDuration.unit)
+      ? (aiDuration.unit as TimelineUnit)
+      : "weeks";
+
   const confidence = Math.min(
     94,
     Math.max(20, Math.round(analysis.confidence * 100)),
@@ -212,6 +309,10 @@ export function calculateEstimate(
 
   return {
     projectTitle: analysis.heading,
+    // The AI's own project type, shown in the subtitle instead of the preset
+    // category (e.g. "Zoo / Wildlife Park Development" instead of
+    // "Website development"). Null when the AI was unavailable.
+    projectTypeLabel: analysis.aiProjectType || analysis.aiCategory || null,
     description,
     category,
     location,
@@ -223,11 +324,12 @@ export function calculateEstimate(
     contingency,
     taxes,
     total,
-    low: roundMoney(total * 0.88),
-    high: roundMoney(total * 1.17),
+    low,
+    high,
     confidence,
     durationMin,
     durationMax,
+    durationUnit,
     scope: analysis.scope,
     assumptions: analysis.assumptions,
     risks: analysis.risks,

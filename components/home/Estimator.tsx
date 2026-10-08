@@ -9,7 +9,12 @@ import {
   projectSizes,
   qualityOptions,
 } from "@/constants";
-import { formatCompactCurrency, formatCurrency, scrollToSection } from "@/lib";
+import {
+  formatCompactCurrency,
+  formatCurrency,
+  formatDurationRange,
+  scrollToSection,
+} from "@/lib";
 import type {
   Category,
   CategoryId,
@@ -655,8 +660,13 @@ export function Estimator({
                 </h2>
                 <p className="mt-1 text-sm text-[#77727f]">
                   Typical investment for{" "}
-                  {estimate.category.shortName.toLowerCase()} in{" "}
-                  {estimate.location.city}
+                  {(estimate.projectTypeLabel ?? estimate.category.shortName)
+                    .charAt(0)
+                    .toLowerCase() +
+                    (estimate.projectTypeLabel ?? estimate.category.shortName).slice(
+                      1,
+                    )}{" "}
+                  in {estimate.location.city}
                 </p>
               </div>
             </div>
@@ -674,7 +684,12 @@ export function Estimator({
                   Timeline
                 </p>
                 <p className="mt-1 text-sm font-bold text-[#37333f]">
-                  {estimate.durationMin}–{estimate.durationMax} wks
+                  {formatDurationRange(
+                    estimate.durationMin,
+                    estimate.durationMax,
+                    estimate.durationUnit,
+                    true,
+                  )}
                 </p>
               </div>
               <div>

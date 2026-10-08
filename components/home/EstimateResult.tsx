@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCompactCurrency, formatCurrency } from "@/lib";
+import { formatCompactCurrency, formatCurrency, formatDurationRange } from "@/lib";
 import type { EstimateResult as EstimateResultData } from "@/types";
 import { Icon } from "@/components/common/Icon";
 
@@ -35,7 +35,8 @@ export function EstimateResultSection({
               {estimate.projectTitle}
             </h2>
             <p className="mt-2 text-sm text-[#77727e]">
-              {estimate.category.name} · {estimate.location.city},{" "}
+              {estimate.projectTypeLabel ?? estimate.category.name} ·{" "}
+              {estimate.location.city},{" "}
               {estimate.location.country} · {estimate.size.name} scope ·{" "}
               {estimate.complexity} complexity
             </p>
@@ -156,7 +157,11 @@ export function EstimateResultSection({
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Icon name="clock" className="h-4 w-4 text-[#9481ef]" />
-                  {estimate.durationMin}–{estimate.durationMax} weeks
+                  {formatDurationRange(
+                    estimate.durationMin,
+                    estimate.durationMax,
+                    estimate.durationUnit,
+                  )}
                 </span>
                 <span className="flex items-center gap-1.5">
                   <Icon name="shield" className="h-4 w-4 text-[#4fd0a5]" />

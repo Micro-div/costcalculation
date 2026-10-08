@@ -172,15 +172,15 @@ export default function Home() {
         setAutoCategory(analysis.category);
       }
       const requestId = ++aiRequestRef.current;
-      void fetchAiAnalysis(text).then((ai) => {
+      void fetchAiAnalysis(text, locationId).then((ai) => {
         if (!ai || requestId !== aiRequestRef.current || categoryManual) return;
         const refined = analyzeProjectWithAi(text, ai);
         setCategoryId(refined.categoryId as CategoryId);
-        setAutoCategory(refined.category);
+        setAutoCategory(refined.aiCategory ?? refined.category);
       });
     }, 400);
     return () => window.clearTimeout(handle);
-  }, [description, categoryManual]);
+  }, [description, categoryManual, locationId]);
 
   useEffect(() => {
     if (!window.location.hash.startsWith("#estimate=")) return;
@@ -224,6 +224,7 @@ export default function Home() {
           shared.sizeId,
           shared.qualityId,
           currencyOverride,
+          getCachedAiAnalysis(shared.description, shared.locationId),
         ),
       );
       setStage("complete");
@@ -332,12 +333,17 @@ export default function Home() {
     event.preventDefault();
     if (description.trim().length < 12) return;
 
-    const detectedCategory = selectedCustom
-      ? categoryId
-      : (analyzeProject(description).categoryId as CategoryId);
     const selectedLocationId = locationSelectedManually
       ? locationId
       : detectLocation(description);
+    // Prefer the AI's classification (same analysis the estimate will use)
+    // so the dropdown matches the type shown in the result subtitle.
+    const detectedCategory = selectedCustom
+      ? categoryId
+      : (analyzeProjectWithAi(
+          description,
+          getCachedAiAnalysis(description, selectedLocationId),
+        ).categoryId as CategoryId);
     setCategoryId(detectedCategory);
     setLocationId(selectedLocationId);
     setQuestionStep(0);
@@ -355,10 +361,11 @@ export default function Home() {
     setIsGenerating(true);
 
     window.setTimeout(() => {
-      // Use the AI analysis (if it arrived in time) as the analysis input;
-      // ALL prices, breakdown, scope, assumptions, timeline, taxes and
-      // currency conversion are still computed by the static USD config.
-      const aiAnalysis = getCachedAiAnalysis(description);
+      // Use the AI analysis (if it arrived in time) as the analysis input:
+      // its own project type, real-world pricing for this location and
+      // realistic timeline drive the estimate. Only when the AI is
+      // unavailable does the static USD config price the result.
+      const aiAnalysis = getCachedAiAnalysis(description, locationId);
       const result = calculateEstimate(
         description,
         categoryId,
