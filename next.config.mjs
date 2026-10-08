@@ -1,11 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  output: 'export',
-
-  // Required for static export: disables the Image Optimization API
-  images: {
-    unoptimized: true,
-  },
+  // IMPORTANT: no `output: 'export'` here. Static export removes API routes
+  // (app/api/analyze, app/api/estimates), which are required for the AI
+  // analysis. Deploy as a normal Next.js app (Vercel default).
 
   // Fix Windows build crash during trace collection
   // Limit build workers: this machine has ~4GB RAM and the worker pool

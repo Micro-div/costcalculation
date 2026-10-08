@@ -55,6 +55,18 @@ export interface EstimateItem {
   rate: number;
 }
 
+export interface CostComponent {
+  name: string;
+  cost: number;
+  percentage: number;
+  note: string;
+}
+
+export interface ScopeItem {
+  title: string;
+  description: string;
+}
+
 export interface EstimateResult {
   projectTitle: string;
   description: string;
@@ -63,6 +75,7 @@ export interface EstimateResult {
   size: ProjectSize;
   quality: QualityOption;
   items: EstimateItem[];
+  components?: CostComponent[];
   subtotal: number;
   contingency: number;
   taxes: number;
@@ -72,9 +85,12 @@ export interface EstimateResult {
   confidence: number;
   durationMin: number;
   durationMax: number;
-  scope: string[];
+  scope: ScopeItem[];
   assumptions: string[];
+  risks: string[];
   complexity: string;
+  aiSource?: "ai" | "fallback";
+  aiModel?: string | null;
 }
 
 export interface SharedEstimate {

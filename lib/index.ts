@@ -14,9 +14,91 @@ import type {
   LocationId,
   ProjectSizeId,
   QualityId,
+  ScopeItem,
 } from "@/types";
 import { analyzeProjectWithAi } from "./analyzeProject";
-import type { AiAnalysisPayload } from "./aiAnalysis";
+import type { AiAnalysisPayload, AiCostComponent } from "./aiAnalysis";
+
+// Turns the AI-provided cost components into authoritative breakdown rows:
+// their costs are re-scaled so they always add up to our computed subtotal,
+// and percentages are derived from the final costs. Returns undefined when
+// the AI didn't provide usable components (caller falls back to `items`).
+function buildCostComponents(
+  raw: AiCostComponent[] | undefined,
+  subtotal: number,
+): EstimateResult["components"] {
+  if (!Array.isArray(raw) || raw.length === 0 || subtotal <= 0) {
+    return undefined;
+  }
+  const usable = raw.filter(
+    (c) =>
+      typeof c?.name === "string" &&
+      c.name.trim() &&
+      Number.isFinite(c?.cost) &&
+      c.cost >= 0 &&
+      Number.isFinite(c?.percentage) &&
+      c.percentage >= 0,
+  );
+  if (usable.length === 0) return undefined;
+
+  const percentagesUsable = usable.every((c) => c.percentage > 0);
+  const costsUsable = usable.some((c) => c.cost > 0);
+  const weights = usable.map((c) =>
+    percentagesUsable ? c.percentage : costsUsable ? c.cost : 1,
+  );
+  const weightSum = weights.reduce((sum, w) => sum + w, 0);
+  if (weightSum <= 0) return undefined;
+
+  const components = usable.map((c, index) => ({
+    name: c.name.trim(),
+    cost: roundMoney(subtotal * (weights[index] / weightSum)),
+    percentage: 0,
+    note: typeof c.note === "string" ? c.note.trim() : "",
+  }));
+
+  // Fix rounding drift so the components always sum exactly to the subtotal.
+  const drift = subtotal - components.reduce((sum, c) => sum + c.cost, 0);
+  if (components.length > 0 && drift !== 0) {
+    const largest = components.reduce(
+      (maxIdx, c, idx) => (c.cost > components[maxIdx].cost ? idx : maxIdx),
+      0,
+    );
+    components[largest].cost = Math.max(0, components[largest].cost + drift);
+  }
+
+  for (const c of components) {
+    c.percentage = Math.round((c.cost / subtotal) * 100);
+  }
+  return components;
+}
+
+// Used whenever the AI did not provide its own component split (network
+// failure, missing key, bad output): the card still shows a real,
+// multi-line breakdown instead of one generic line.
+function buildGenericComponents(
+  subtotal: number,
+): EstimateResult["components"] {
+  if (subtotal <= 0) return undefined;
+  const shares = [
+    { name: "Design", weight: 0.18, note: "Visuals and planning" },
+    { name: "Build", weight: 0.34, note: "Core delivery work" },
+    { name: "Labour", weight: 0.23, note: "Team execution time" },
+    { name: "Testing", weight: 0.12, note: "Quality checks and fixes" },
+    { name: "Management", weight: 0.13, note: "Coordination and delivery" },
+  ];
+  const components = shares.map((s) => ({
+    name: s.name,
+    cost: roundMoney(subtotal * s.weight),
+    percentage: 0,
+    note: s.note,
+  }));
+  const drift = subtotal - components.reduce((sum, c) => sum + c.cost, 0);
+  components[1].cost = Math.max(0, components[1].cost + drift);
+  for (const c of components) {
+    c.percentage = Math.round((c.cost / subtotal) * 100);
+  }
+  return components;
+}
 
 export function roundMoney(value: number) {
   return Math.round(value);
@@ -108,6 +190,9 @@ export function calculateEstimate(
     (sum, item) => sum + item.quantity * item.rate,
     0,
   );
+  const components =
+    buildCostComponents(aiAnalysis?.components, subtotal) ??
+    buildGenericComponents(subtotal);
   const contingency = roundMoney(subtotal * 0.05);
   const taxes = roundMoney((subtotal + contingency) * location.taxRate);
   const total = subtotal + contingency + taxes;
@@ -133,6 +218,7 @@ export function calculateEstimate(
     size,
     quality,
     items,
+    components,
     subtotal,
     contingency,
     taxes,
@@ -144,7 +230,13 @@ export function calculateEstimate(
     durationMax,
     scope: analysis.scope,
     assumptions: analysis.assumptions,
+    risks: analysis.risks,
     complexity: analysis.complexity,
+    aiSource: aiAnalysis && aiAnalysis.source === "ai" ? "ai" : "fallback",
+    aiModel:
+      aiAnalysis && aiAnalysis.source === "ai"
+        ? (aiAnalysis.model ?? null)
+        : null,
   };
 }
 

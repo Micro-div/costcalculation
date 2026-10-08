@@ -35,6 +35,7 @@ import type {
   LocationId,
   ProjectSizeId,
   QualityId,
+  ScopeItem,
   SharedEstimate,
 } from "@/types";
 
@@ -523,8 +524,20 @@ export default function Home() {
   // Re-run them through the current calculator so they never override
   // the new result format.
   const refreshEstimate = (est: EstimateResult): EstimateResult => {
-    if (Array.isArray(est.scope) && Array.isArray(est.assumptions)) {
-      return est;
+    if (
+      Array.isArray(est.scope) &&
+      Array.isArray(est.assumptions) &&
+      Array.isArray(est.risks)
+    ) {
+      // Older saved estimates used plain strings for scope items — lift
+      // them to the { title, description } shape the UI now renders.
+      const scope = (est.scope as unknown as Array<ScopeItem | string>).map(
+        (item) =>
+          typeof item === "string"
+            ? { title: item, description: "" }
+            : item,
+      );
+      return { ...est, scope };
     }
     return calculateEstimate(
       est.description,

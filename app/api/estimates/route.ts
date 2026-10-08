@@ -2,15 +2,20 @@ import { NextResponse } from "next/server";
 import { categories } from "@/constants";
 import type { CategoryId, ProjectSizeId } from "@/types";
 
-// This project uses `output: "export"`, which does not support dynamic API
-// routes. Marking the route static lets the build pass; it remains fully
-// functional in `next dev` and server deployments.
-export const dynamic = "force-static";
+// Dynamic server route: runs on Vercel / any Node server. Uses the same
+// GROQ_API_KEY as POST /api/analyze (set it in Vercel → Settings →
+// Environment Variables, or in .env.local for local development).
 
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? "gemini-2.0-flash";
+const MODEL = process.env.GROQ_MODEL ?? "openai/gpt-oss-120b";
+// Fallback models used only if the configured one is unavailable on the key.
+const MODEL_FALLBACKS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
+const MODEL_CANDIDATES = Array.from(new Set([MODEL, ...MODEL_FALLBACKS]));
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const VALID_TYPES = new Set<string>(categories.map((category) => category.id));
 const VALID_COMPLEXITIES = new Set(["small", "medium", "large"]);
+
+export const dynamic = "force-dynamic";
 
 interface Analysis {
   name: string;
@@ -76,12 +81,12 @@ function parseAnalysis(text: string): Analysis | null {
 
 function extractText(data: unknown): string | null {
   if (typeof data !== "object" || data === null) return null;
-  const candidates = (data as { candidates?: unknown }).candidates;
-  if (!Array.isArray(candidates)) return null;
-  const first = candidates[0] as
-    | { content?: { parts?: Array<{ text?: unknown }> } }
+  const choices = (data as { choices?: unknown }).choices;
+  if (!Array.isArray(choices)) return null;
+  const first = choices[0] as
+    | { message?: { content?: unknown } }
     | undefined;
-  const text = first?.content?.parts?.[0]?.text;
+  const text = first?.message?.content;
   return typeof text === "string" && text.trim() ? text : null;
 }
 
@@ -101,7 +106,7 @@ export async function POST(request: Request) {
     return jsonError("A project description is required.", 400);
   }
 
-  const apiKey = process.env.GEMINI_API_KEY;
+  const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) {
     return jsonError("AI analysis is not configured on this server.", 500);
   }
@@ -111,36 +116,41 @@ export async function POST(request: Request) {
     "The user describes their project in a sentence or two.",
     "Respond with ONLY valid JSON (no markdown, no code fences, no explanation) in this exact shape:",
     '{"name": "A short project title (max 8 words)", "type": "One of: web, mobile, ecommerce, design, seo, social, branding, ai", "features": ["3 to 8 short feature descriptions"], "complexity": "One of: small, medium, large", "summary": "One or two sentences summarizing the project and what it involves."}',
-    "",
-    `User description: ${description.trim().slice(0, 1000)}`,
   ].join("\n");
 
   try {
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent?key=${encodeURIComponent(apiKey)}`,
-      {
+    let text: string | null = null;
+    for (const model of MODEL_CANDIDATES) {
+      const res = await fetch(GROQ_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${apiKey}`,
+        },
         body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            responseMimeType: "application/json",
-            temperature: 0.4,
-          },
+          model,
+          temperature: 0.4,
+          response_format: { type: "json_object" },
+          messages: [
+            { role: "system", content: prompt },
+            { role: "user", content: description.trim().slice(0, 1000) },
+          ],
         }),
-      },
-    );
+      });
 
-    if (!res.ok) {
-      return jsonError("The AI service returned an error. Please try again.", 502);
+      if (!res.ok) {
+        console.error(
+          `[api/estimates] Groq responded ${res.status} for model ${model}`,
+        );
+        continue;
+      }
+
+      text = extractText(await res.json());
+      if (text) break;
     }
 
-    const text = extractText(await res.json());
     if (!text) {
-      return jsonError(
-        "The AI service returned an empty response. Please try again.",
-        502,
-      );
+      return jsonError("The AI service returned an error. Please try again.", 502);
     }
 
     const analysis = parseAnalysis(text);

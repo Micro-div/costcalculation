@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   categories,
+  exampleProjects,
   locations,
   projectSizes,
   qualityOptions,
@@ -162,6 +163,19 @@ export function Estimator({
 }: EstimatorProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [revealed, setRevealed] = useState(false);
+  // Random example pool: starts deterministic (SSR-safe), shuffles after mount.
+  const [exampleOffset, setExampleOffset] = useState(0);
+  const visibleExamples = Array.from(
+    { length: 4 },
+    (_, i) => exampleProjects[(exampleOffset + i) % exampleProjects.length],
+  );
+  const shuffleExamples = () =>
+    setExampleOffset((current) => {
+      // Pick a different random position so the list visibly changes.
+      const next =
+        1 + Math.floor(Math.random() * (exampleProjects.length - 1));
+      return (current + next) % exampleProjects.length;
+    });
 
   useEffect(() => {
     const node = cardRef.current;
@@ -181,6 +195,12 @@ export function Estimator({
     );
     observer.observe(node);
     return () => observer.disconnect();
+  }, []);
+
+  // Shuffle the example suggestions once on mount (client-only, so the
+  // server-rendered HTML matches the first render and hydration stays clean).
+  useEffect(() => {
+    setExampleOffset(Math.floor(Math.random() * exampleProjects.length));
   }, []);
 
   return (
@@ -241,19 +261,63 @@ export function Estimator({
             >
               What do you want to build or improve?
             </label>
-            <div className="relative mt-3">
-              <textarea
-                id="project-description"
-                value={description}
-                onChange={(event) =>
-                  onDescriptionChange(event.target.value.slice(0, 500))
-                }
-                placeholder="For example: I need an ecommerce website for a clothing brand with payments, customer accounts and around 500 products..."
-                className="min-h-[132px] w-full resize-none rounded-2xl border border-[#dedbe4] bg-white px-4 py-3.5 pr-11 text-[14px] leading-6 text-[#33303a] outline-none transition placeholder:text-[#aaa6b0] focus:border-[#7661e8] focus:ring-4 focus:ring-[#7661e8]/10 sm:min-h-[142px] sm:text-[15px]"
-              />
-              <span className="absolute bottom-3 right-3 text-[10px] font-medium text-[#aaa6b1]">
-                {description.length}/500
-              </span>
+            <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_210px]">
+              <div className="relative">
+                <textarea
+                  id="project-description"
+                  value={description}
+                  onChange={(event) =>
+                    onDescriptionChange(event.target.value.slice(0, 500))
+                  }
+                  placeholder="For example: I need an ecommerce website for a clothing brand with payments, customer accounts and around 500 products..."
+                  className="min-h-[132px] w-full resize-none rounded-2xl border border-[#dedbe4] bg-white px-4 py-3.5 pr-11 text-[14px] leading-6 text-[#33303a] outline-none transition placeholder:text-[#aaa6b0] focus:border-[#7661e8] focus:ring-4 focus:ring-[#7661e8]/10 sm:min-h-[142px] sm:text-[15px] xl:min-h-[196px]"
+                />
+                <span className="absolute bottom-3 right-3 text-[10px] font-medium text-[#aaa6b1]">
+                  {description.length}/500
+                </span>
+              </div>
+
+              <aside className="rounded-2xl border border-[#e8e5ed] bg-white p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#7a7582]">
+                    <Icon name="sparkles" className="h-3.5 w-3.5 text-[#6954df]" />
+                    Try an example
+                  </p>
+                  <button
+                    type="button"
+                    onClick={shuffleExamples}
+                    aria-label="Show different examples"
+                    title="Show different examples"
+                    className="grid h-7 w-7 shrink-0 place-items-center rounded-lg text-[#8a8590] transition hover:bg-[#f3f1f7] hover:text-[#6754e7]"
+                  >
+                    <Icon name="rotate" className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+                <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-1">
+                  {visibleExamples.map((example) => (
+                    <button
+                      key={example.label}
+                      type="button"
+                      onClick={() => onDescriptionChange(example.description)}
+                      title={example.description}
+                      className={`group flex items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-left text-[11px] font-semibold leading-4 transition ${
+                        description === example.description
+                          ? "border-[#7460e4] bg-[#f4f1ff] text-[#5b4abe]"
+                          : "border-[#e9e6ee] bg-[#fcfbfd] text-[#5f5b66] hover:border-[#c9c3e8] hover:bg-[#f8f7fc] hover:text-[#5b4abe]"
+                      }`}
+                    >
+                      <span className="min-w-0 truncate">{example.label}</span>
+                      <Icon
+                        name="arrow-right"
+                        className="h-3 w-3 shrink-0 text-[#b3aeba] transition group-hover:translate-x-0.5 group-hover:text-[#6a55d7]"
+                      />
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2.5 text-[10px] leading-4 text-[#9a95a0]">
+                  Tap one to fill the box — then edit it in your own words.
+                </p>
+              </aside>
             </div>
 
             <div className="mt-3 grid gap-3 sm:grid-cols-2">

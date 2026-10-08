@@ -246,6 +246,71 @@ export const qualityOptions = [
   },
 ] as const;
 
+// Random example project descriptions shown next to the description box.
+// Each entry: label (short chip text) + full description used to fill the box.
+export const exampleProjects = [
+  {
+    label: "Clothing ecommerce store",
+    description:
+      "I need an ecommerce website for a clothing brand with online payments, customer accounts and around 500 products.",
+  },
+  {
+    label: "Food delivery app",
+    description:
+      "I need a food delivery mobile app with restaurant listings, order tracking and online payments.",
+  },
+  {
+    label: "Hotel booking website",
+    description:
+      "I need a hotel booking website with a reservation calendar, room listings and email confirmations.",
+  },
+  {
+    label: "Portfolio website",
+    description:
+      "I need a personal portfolio website to showcase my projects with a contact form and blog.",
+  },
+  {
+    label: "SaaS dashboard",
+    description:
+      "I need a SaaS web app with user login, subscriptions, an admin dashboard and analytics.",
+  },
+  {
+    label: "WordPress business site",
+    description:
+      "I need a responsive business website with a modern design, contact form and basic SEO.",
+  },
+  {
+    label: "Logo and brand identity",
+    description:
+      "I need a complete visual identity for a new coffee brand, including logo, color palette and brand guide.",
+  },
+  {
+    label: "SEO campaign",
+    description:
+      "I need technical SEO and a three-month content plan to improve organic traffic for my SaaS website.",
+  },
+  {
+    label: "Fitness mobile app",
+    description:
+      "I need a cross-platform fitness app with user profiles, subscriptions and progress tracking.",
+  },
+  {
+    label: "AI support assistant",
+    description:
+      "I need an AI customer support assistant that connects to our knowledge base and ecommerce store.",
+  },
+  {
+    label: "Tyre shop online store",
+    description:
+      "I need an online store for my tyre shop with product search, inventory and online payments.",
+  },
+  {
+    label: "Social media management",
+    description:
+      "I need social media management for a small fashion brand, with 12 posts per month and monthly reports.",
+  },
+] as const;
+
 export const allCurrencies = [
   "USD",
   "CAD",
