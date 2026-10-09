@@ -36,7 +36,21 @@ export type AiProjectKind = "physical" | "software" | "service";
 
 import type { ScopeItem } from "@/types";
 
+// The "needs_info" outcome: the input was only a name or too vague, so the
+// AI returns what it thinks the project is plus short questions. NO estimate.
+export interface AiNeedsInfoPayload {
+  status: "needs_info";
+  understood: string;
+  questions: string[];
+}
+
 export interface AiAnalysisPayload {
+  // "ok" when the AI returned a full estimate (needs_info is the other shape).
+  status?: "ok";
+  understood?: string;
+  // Compressed 1-2 line summary of the project, used in place of the raw
+  // description when building the estimate (saves tokens, keeps it focused).
+  projectBrief?: string;
   category: string;
   projectType: string;
   subject: string;
@@ -54,6 +68,8 @@ export interface AiAnalysisPayload {
   model?: string | null;
 }
 
+export type AiAnalysisResponse = AiAnalysisPayload | AiNeedsInfoPayload;
+
 const CACHE_KEY = "costcalc-ai-analysis-v4";
 const CACHE_MAX_ENTRIES = 50;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
@@ -63,7 +79,7 @@ const REQUEST_TIMEOUT_MS = 40000;
 
 interface CacheEntry {
   savedAt: number;
-  payload: AiAnalysisPayload;
+  payload: AiAnalysisResponse;
 }
 
 const memoryCache = new Map<string, CacheEntry>();
@@ -135,11 +151,28 @@ function sanitizeDuration(value: unknown): AiDuration | undefined {
   return { min, max, unit };
 }
 
+function isValidNeedsInfoPayload(value: unknown): value is AiNeedsInfoPayload {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Partial<AiNeedsInfoPayload>;
+  return (
+    v.status === "needs_info" &&
+    typeof v.understood === "string" &&
+    v.understood.trim().length > 0 &&
+    Array.isArray(v.questions) &&
+    v.questions.length > 0 &&
+    v.questions.length <= 2 &&
+    v.questions.every(
+      (question) => typeof question === "string" && question.trim().length > 0,
+    )
+  );
+}
+
 function isValidPayload(value: unknown): value is AiAnalysisPayload {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Partial<AiAnalysisPayload>;
   // The server may send explicit nulls for the optional AI-only fields.
   const raw = value as Record<string, unknown>;
+  const statusOk = raw.status === undefined || raw.status === "ok";
   const kindOk =
     raw.kind === undefined ||
     raw.kind === null ||
@@ -153,6 +186,7 @@ function isValidPayload(value: unknown): value is AiAnalysisPayload {
     raw.duration === null ||
     sanitizeDuration(raw.duration) !== undefined;
   return (
+    statusOk &&
     typeof v.category === "string" &&
     typeof v.projectType === "string" &&
     typeof v.subject === "string" &&
@@ -175,6 +209,11 @@ function isValidPayload(value: unknown): value is AiAnalysisPayload {
     (v.source === undefined || v.source === "ai" || v.source === "fallback") &&
     (v.model === undefined || v.model === null || typeof v.model === "string")
   );
+}
+
+// Accepts either response shape: the full estimate or the needs_info card.
+export function isValidAiResponse(value: unknown): value is AiAnalysisResponse {
+  return isValidNeedsInfoPayload(value) || isValidPayload(value);
 }
 
 function readStorage(): void {
@@ -252,7 +291,7 @@ function cacheKey(
 export function getCachedAiAnalysis(
   description: string,
   locationId?: string | null,
-): AiAnalysisPayload | null {
+): AiAnalysisResponse | null {
   readStorage();
   const key = cacheKey(description, locationId);
   if (!key) return null;
@@ -269,7 +308,7 @@ export function getCachedAiAnalysis(
 export async function fetchAiAnalysis(
   description: string,
   locationId?: string | null,
-): Promise<AiAnalysisPayload | null> {
+): Promise<AiAnalysisResponse | null> {
   const key = cacheKey(description, locationId);
   if (!key) return null;
 
@@ -280,7 +319,7 @@ export async function fetchAiAnalysis(
   const pending = inflight.get(key);
   if (pending) return pending;
 
-  const request = (async (): Promise<AiAnalysisPayload | null> => {
+  const request = (async (): Promise<AiAnalysisResponse | null> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
@@ -303,11 +342,31 @@ export async function fetchAiAnalysis(
         return null;
       }
       const data: unknown = await res.json();
-      if (!isValidPayload(data)) {
+      if (!isValidAiResponse(data)) {
         console.warn("[aiAnalysis] /api/analyze returned an invalid payload");
         return null;
       }
+      // The "needs_info" outcome: cache it like any other AI result and
+      // return it as-is — the caller shows the questions card instead of
+      // an estimate.
+      if (isValidNeedsInfoPayload(data)) {
+        const payload: AiNeedsInfoPayload = {
+          status: "needs_info",
+          understood: data.understood,
+          questions: data.questions,
+        };
+        memoryCache.set(key, { savedAt: Date.now(), payload });
+        writeStorage();
+        return payload;
+      }
       const payload: AiAnalysisPayload = {
+        ...(data.status === "ok" ? { status: "ok" as const } : {}),
+        ...(typeof data.understood === "string"
+          ? { understood: data.understood }
+          : {}),
+        ...(typeof data.projectBrief === "string"
+          ? { projectBrief: data.projectBrief }
+          : {}),
         category: data.category,
         projectType: data.projectType,
         subject: data.subject,

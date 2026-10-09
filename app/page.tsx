@@ -89,6 +89,12 @@ export default function Home() {
   // The AI's own category label (e.g. "Zoo / Wildlife Park", "Physical Shop")
   // shown in the dropdown when the AI detects a category not in the preset list.
   const [aiCategoryLabel, setAiCategoryLabel] = useState<string | null>(null);
+  // The "needs_info" verdict: the description is only a name or too vague,
+  // so instead of an estimate we show what the AI understood + questions.
+  const [needsInfo, setNeedsInfo] = useState<{
+    understood: string;
+    questions: string[];
+  } | null>(null);
   // Guards against stale AI responses: only the newest request may apply.
   const aiRequestRef = useRef(0);
 

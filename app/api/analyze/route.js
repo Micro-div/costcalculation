@@ -160,15 +160,28 @@ function buildSystemPrompt(userLocation) {
     "You classify AND price project descriptions for a cost estimator used by a digital and physical services agency.",
     "Work in two steps: (1) Read the ENTIRE description and decide what the project ACTUALLY is — its real-world type, quantities and deliverables. Do not classify by matching a single keyword. (2) Choose the kind, category, projectType, cost breakdown, price range, timeline and scope for that project.",
     "",
+    "CLARITY CHECK (decide this FIRST, before pricing):",
+    "- status \"needs_info\": the description is ONLY a business or brand name (e.g. \"Nike\", \"Al-Noor\") or a bare business type / single generic word with no specifics — no location, no size, no quantity, no feature and no deliverable (e.g. \"shop\", \"tuck shop\", \"website\"). You cannot produce a meaningful estimate from that alone, so return NO estimate.",
+    "- status \"ok\": the description says what the project is AND gives at least one concrete detail beyond the type — a location, a size, a quantity, a feature or a deliverable (e.g. \"A tuck shop in Karachi, 20 shelves and a billing counter\"). Return the full estimate.",
+    "When unsure, choose \"needs_info\": never guess an estimate from a brand name or a bare type word alone.",
+    "",
     "PRICING RULES",
     "Price the project at real-world market cost for the user's location. Physical, construction, land and infrastructure projects typically cost tens of thousands to millions of dollars. Never scale down to fit a small budget. Use the quantities the user gave (acres, animals, floors, rooms, staff) as the main cost drivers.",
     where,
     "No preset price ranges, category budgets or software price baselines are sent to you on purpose. Never assume or anchor on a small budget, and never price a physical project at software prices.",
     "Physical and non-software projects are valid and common: zoos and wildlife parks, farms, land development, construction, roads and infrastructure, warehouses, factories, restaurants, shops, car showrooms, offices and fit-outs, events and venues. A physical showroom or shop floor is NOT an e-commerce store — use E-commerce only when the user explicitly wants to sell online. A 'tuc shop' or 'tyre shop' is a PHYSICAL store unless the user says 'online', 'website', or 'app'.",
     "",
-    "Return ONLY a valid JSON object with exactly these keys and nothing else:",
-    '{ "kind": string, "category": string, "projectType": string, "subject": string, "heading": string, "features": string[], "complexity": string, "confidence": number, "assumptions": string[], "pricing": {"low": number, "typical": number, "high": number}, "duration": {"min": number, "max": number, "unit": string}, "components": [{"name": string, "cost": number, "percentage": number, "note": string}], "scope": [{"title": string, "description": string}] }',
+    "Return ONLY a valid JSON object and nothing else. Every answer starts with a \"status\" key.",
     "",
+    'If status is "needs_info", return exactly these keys and nothing else:',
+    '{ "status": "needs_info", "understood": string, "questions": string[] }',
+    "- understood: one line describing what you think the project is. If the input is a business or brand name, use what you know about that business type to guess (e.g. \"Al-Noor Pharmacy sounds like a pharmacy\").",
+    '- questions: 1-2 short questions (each under 12 words) asking what you need to estimate it. Make the first question confirm your guess when the input is a name (e.g. "Sounds like a pharmacy — is that right?", "Physical store or online shop?", "What size, and where is it?").',
+    "",
+    'If status is "ok", return exactly these keys and nothing else:',
+    '{ "status": "ok", "understood": string, "projectBrief": string, "kind": string, "category": string, "projectType": string, "subject": string, "heading": string, "features": string[], "complexity": string, "confidence": number, "assumptions": string[], "pricing": {"low": number, "typical": number, "high": number}, "duration": {"min": number, "max": number, "unit": string}, "components": [{"name": string, "cost": number, "percentage": number, "note": string}], "scope": [{"title": string, "description": string}] }',
+    "understood: one line — what the project is, in plain words.",
+    "projectBrief: a compressed 1-2 line summary of the project covering type, location, size, key features, and whether it is physical or digital. This brief is used in place of the raw description downstream, so keep it tight and factual.",
     `kind: exactly one of ${ALLOWED_KINDS.join(" | ")} — "physical" for anything built on land (construction, infrastructure, venues, land, animals, utilities), "software" for code, apps and websites, "service" for design, branding, marketing and campaigns.`,
     `category: describe the project in your own short words (max 4 words), e.g. "Zoo / Wildlife Park", "Interior & Fit-Out", "Road Construction". Only use one of these common labels if it clearly matches: ${ALLOWED_CATEGORIES.join(" | ")}.`,
     `projectType: your precise label for this exact project (max 6 words), e.g. "Zoo / Wildlife Park Development". Only use one of these generic labels when it clearly matches: ${ALLOWED_PROJECT_TYPES.join(" | ")}.`,
@@ -412,6 +425,11 @@ function sanitizeAiOutput(raw) {
     : [];
 
   return {
+    status: "ok",
+    understood: capWords(data.understood, 20, 200),
+    // Compressed 1-2 line summary used downstream in place of the raw
+    // description, so the estimate stays focused and tokens are saved.
+    projectBrief: capWords(data.projectBrief, 40, 300),
     kind,
     category,
     projectType,
@@ -426,6 +444,42 @@ function sanitizeAiOutput(raw) {
     components,
     scope,
   };
+}
+
+// The "needs_info" outcome: the input is only a name or too vague, so the
+// model returns what it thinks the project is plus up to 2 short questions
+// instead of an estimate. Returns null when that shape is malformed.
+function sanitizeNeedsInfo(data) {
+  const understood = capWords(data.understood, 20, 200);
+  const questions = Array.isArray(data.questions)
+    ? data.questions
+        .filter((q) => typeof q === "string")
+        .map((q) => capWords(q, 12, 120))
+        .filter(Boolean)
+        .slice(0, 2)
+    : [];
+  if (!understood || questions.length === 0) return null;
+  return { status: "needs_info", understood, questions };
+}
+
+// Parses the model response in either of its two shapes: the "ok" estimate
+// (sanitized by sanitizeAiOutput) or the "needs_info" clarification.
+function parseAiResponse(raw) {
+  let data;
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (
+    typeof data === "object" &&
+    data !== null &&
+    !Array.isArray(data) &&
+    data.status === "needs_info"
+  ) {
+    return sanitizeNeedsInfo(data);
+  }
+  return sanitizeAiOutput(raw);
 }
 
 function guessKind(description) {
@@ -575,7 +629,24 @@ export async function POST(request) {
     });
   }
 
-  let sanitized = sanitizeAiOutput(raw);
+  const parsed = parseAiResponse(raw);
+
+  // "needs_info" is a valid outcome, not an error: the input is only a name
+  // or too vague to estimate. Return the understood line and the questions
+  // with NO estimate and NO rule-based fallback — the client shows an
+  // inline card asking the user to add details.
+  if (parsed && parsed.status === "needs_info") {
+    console.log(
+      `[api/analyze] source=ai model=${usedModel} responseMs=${Date.now() - startedAt} status=needs_info error=none`,
+    );
+    return NextResponse.json({
+      status: "needs_info",
+      understood: parsed.understood,
+      questions: parsed.questions,
+    });
+  }
+
+  let sanitized = parsed;
 
   // SANITY CHECK: an implausibly low (or absurdly fast) physical estimate is
   // re-asked ONCE with a note to use real-world market prices.
