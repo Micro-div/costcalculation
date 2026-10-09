@@ -6,6 +6,7 @@ import {
   USD_RATES,
 } from "@/constants";
 import type {
+  Category,
   CategoryId,
   CurrencyCode,
   EstimateItem,
@@ -205,6 +206,10 @@ export function calculateEstimate(
   // subject/heading/confidence AND — when available — its own real-world
   // pricing (low/typical/high in USD for the user's location) and timeline.
   // Preset price ranges are never sent to the AI and never override it.
+  // When the AI detects a new category (zoo, physical shop, etc.) that
+  // doesn't match any preset, the AI's labels are used for display and
+  // its pricing drives the estimate — the preset category is only a
+  // display fallback.
   const analysis = analyzeProjectWithAi(description, aiAnalysis);
   const category =
     categories.find((item) => item.id === categoryId) ?? categories[0];
@@ -314,7 +319,17 @@ export function calculateEstimate(
     // "Website development"). Null when the AI was unavailable.
     projectTypeLabel: analysis.aiProjectType || analysis.aiCategory || null,
     description,
-    category,
+    // When the AI detects a new category not in the preset list, use a
+    // dynamic category object with the AI's label so the UI shows the
+    // detected category name instead of a mismatched preset.
+    category: analysis.aiCategory
+      ? ({
+          ...category,
+          name: analysis.aiCategory,
+          shortName: analysis.aiCategory,
+          description: `AI-detected: ${analysis.aiCategory}`,
+        } as unknown as Category)
+      : category,
     location,
     size,
     quality,

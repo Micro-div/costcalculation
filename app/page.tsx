@@ -86,6 +86,9 @@ export default function Home() {
   const [errorToast, setErrorToast] = useState("");
   const [categoryManual, setCategoryManual] = useState(false);
   const [autoCategory, setAutoCategory] = useState<string | null>(null);
+  // The AI's own category label (e.g. "Zoo / Wildlife Park", "Physical Shop")
+  // shown in the dropdown when the AI detects a category not in the preset list.
+  const [aiCategoryLabel, setAiCategoryLabel] = useState<string | null>(null);
   // Guards against stale AI responses: only the newest request may apply.
   const aiRequestRef = useRef(0);
 
@@ -154,29 +157,36 @@ export default function Home() {
 
   // While typing, auto-select the detected category in the dropdown.
   // Once the user picks a category manually, stop overriding it.
-  // The rule-based pass stays instant; after the same debounce an optional
-  // AI pass (POST /api/analyze, server-side Groq) refines the analysis input
-  // (category, features, complexity, subject, heading, confidence). It is
-  // cached by normalized text, so repeat input never calls the API twice;
-  // any failure/timeout/stale response silently falls back to rule-based.
+  // The AI pass (POST /api/analyze, server-side Groq) is the PRIMARY source
+  // for category detection — it can detect new categories (zoo, physical shop,
+  // etc.) that the rule-based preset list doesn't know about. The rule-based
+  // pass is only used as a fallback when the AI is unavailable.
   useEffect(() => {
     const handle = window.setTimeout(() => {
       const text = description.trim();
       if (text.length < 8) {
         setAutoCategory(null);
+        setAiCategoryLabel(null);
         return;
       }
+      // Rule-based runs instantly as a preliminary guess (used only if AI fails)
       const analysis = analyzeProject(text);
       if (!categoryManual) {
         setCategoryId(analysis.categoryId as CategoryId);
         setAutoCategory(analysis.category);
       }
+      // AI pass — this is the PRIMARY source for category + pricing
       const requestId = ++aiRequestRef.current;
       void fetchAiAnalysis(text, locationId).then((ai) => {
         if (!ai || requestId !== aiRequestRef.current || categoryManual) return;
         const refined = analyzeProjectWithAi(text, ai);
+        // AI's category is PRIMARY — it overrides the rule-based detection
         setCategoryId(refined.categoryId as CategoryId);
         setAutoCategory(refined.aiCategory ?? refined.category);
+        // Store the AI's own category label for the dropdown
+        if (refined.aiCategory) {
+          setAiCategoryLabel(refined.aiCategory);
+        }
       });
     }, 400);
     return () => window.clearTimeout(handle);
@@ -336,14 +346,13 @@ export default function Home() {
     const selectedLocationId = locationSelectedManually
       ? locationId
       : detectLocation(description);
-    // Prefer the AI's classification (same analysis the estimate will use)
-    // so the dropdown matches the type shown in the result subtitle.
+    // AI's classification is PRIMARY — it detects the real project type
+    // (web app, physical shop, zoo, etc.) and provides real market pricing.
+    // Only when the AI is unavailable do we fall back to rule-based detection.
+    const aiAnalysis = getCachedAiAnalysis(description, selectedLocationId);
     const detectedCategory = selectedCustom
       ? categoryId
-      : (analyzeProjectWithAi(
-          description,
-          getCachedAiAnalysis(description, selectedLocationId),
-        ).categoryId as CategoryId);
+      : (analyzeProjectWithAi(description, aiAnalysis).categoryId as CategoryId);
     setCategoryId(detectedCategory);
     setLocationId(selectedLocationId);
     setQuestionStep(0);
@@ -409,6 +418,7 @@ export default function Home() {
     setTitleOverride(null);
     setCategoryManual(false);
     setAutoCategory(null);
+    setAiCategoryLabel(null);
     setCategoryId("web");
     setLocationId("us");
     setLocationSelectedManually(false);
@@ -637,6 +647,7 @@ export default function Home() {
         selectedLocation={selectedLocation}
         onDescriptionChange={setDescription}
         autoCategoryHint={categoryManual ? null : autoCategory}
+        aiCategoryLabel={categoryManual ? null : aiCategoryLabel}
         customDescription={customDescription}
         onCategoryChange={(id) => {
           setCategoryId(id);

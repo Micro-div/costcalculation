@@ -44,6 +44,7 @@ export interface EstimatorProps {
   selectedLocation: Location;
   onDescriptionChange: (value: string) => void;
   autoCategoryHint?: string | null;
+  aiCategoryLabel?: string | null;
   onCategoryChange: (id: CategoryId) => void;
   onLocationChange: (id: LocationId) => void;
   onSizeChange: (id: ProjectSizeId) => void;
@@ -146,6 +147,7 @@ export function Estimator({
   selectedLocation,
   onDescriptionChange,
   autoCategoryHint,
+  aiCategoryLabel,
   onCategoryChange,
   onLocationChange,
   onSizeChange,
@@ -338,12 +340,17 @@ export function Estimator({
                       value={
                         selectedCustom
                           ? `custom:${selectedCustom.name}`
-                          : categoryId
+                          : aiCategoryLabel
+                            ? `ai:${aiCategoryLabel}`
+                            : categoryId
                       }
                       onChange={(event) => {
                         const value = event.target.value;
                         if (value.startsWith("custom:")) {
                           onSelectCustomType(value.slice("custom:".length));
+                        } else if (value.startsWith("ai:")) {
+                          // AI-detected category — no preset categoryId change needed
+                          // The AI's pricing and labels are used directly
                         } else {
                           onCategoryChange(value as CategoryId);
                         }
@@ -355,6 +362,11 @@ export function Estimator({
                           {category.shortName}
                         </option>
                       ))}
+                      {aiCategoryLabel && (
+                        <option value={`ai:${aiCategoryLabel}`}>
+                          {aiCategoryLabel}
+                        </option>
+                      )}
                       {customProjectTypes.length > 0 && (
                         <optgroup label="Your projects">
                           {customProjectTypes.map((custom) => (
