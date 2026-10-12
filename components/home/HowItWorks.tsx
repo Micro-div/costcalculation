@@ -1,26 +1,51 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useRef } from "react";
 import type { IconName } from "@/types";
 import { Icon } from "@/components/common/Icon";
 import { Reveal } from "@/components/common/Reveal";
 
 export function HowItWorks() {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Play the banner video once, the first time it is scrolled into view
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Respect "reduce motion": keep showing the poster image only
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          video.play().catch(() => {});
+          observer.disconnect(); // never triggers again on later scrolls
+        }
+      },
+      { threshold: 0.4 } // starts when 40% of the banner is visible
+    );
+
+    observer.observe(video);
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <section
       id="how-it-works"
       className="scroll-mt-20 border-y border-[#e8e5ed] bg-white pb-20 sm:pb-28"
     >
-      {/* Full-width banner — always shows the whole image, no blank/cropped gaps */}
-      <Reveal>
-        <Image
-          src="/banner.png"
-          alt="CostCalc — Know the cost before you build! Get your project price in minutes."
-          width={1980}
-          height={1020}
-          priority
-          sizes="100vw"
-          className="block h-auto w-full"
-        />
-      </Reveal>
+      {/* Banner video: full width, 1980x500, plays once when scrolled into view */}
+      <video
+        ref={videoRef}
+        src="/banner.mp4"
+        poster="/banner.png"
+        muted
+        playsInline
+        preload="auto"
+        aria-label="CostCalc — Know the cost before you build! Get your project price in minutes."
+        className="block aspect-[1980/500] h-auto w-full object-cover"
+      />
 
       <div className="mx-auto max-w-[1200px] px-5 pt-20 sm:px-7 sm:pt-28">
         <div className="mx-auto max-w-2xl text-center">
