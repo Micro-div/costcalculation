@@ -83,7 +83,7 @@ interface CacheEntry {
 }
 
 const memoryCache = new Map<string, CacheEntry>();
-const inflight = new Map<string, Promise<AiAnalysisPayload | null>>();
+const inflight = new Map<string, Promise<AiAnalysisResponse | null>>();
 let storageLoaded = false;
 
 export function normalizeDescriptionText(text: string): string {

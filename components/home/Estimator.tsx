@@ -39,6 +39,9 @@ export interface EstimatorProps {
   qualityId: QualityId;
   questionStep: number;
   estimate: EstimateResult | null;
+  // The AI's "needs_info" verdict (description too vague to estimate):
+  // what it understood + the questions it wants answered.
+  needsInfo: { understood: string; questions: string[] } | null;
   descriptionReady: boolean;
   selectedCategory: Category;
   selectedLocation: Location;
@@ -142,6 +145,7 @@ export function Estimator({
   qualityId,
   questionStep,
   estimate,
+  needsInfo,
   descriptionReady,
   selectedCategory,
   selectedLocation,
@@ -216,9 +220,9 @@ export function Estimator({
       <div
         ref={cardRef}
         data-revealed={revealed}
-        className="estimator-card relative overflow-hidden rounded-[26px] border border-white/90 bg-white p-3 shadow-[0_30px_90px_rgba(45,38,74,0.14)] sm:p-4">
+        className="estimator-card relative overflow-hidden rounded-[26px] border border-white/90 bg-white p-3 shadow-[0_30px_90px_rgba(45,38,74,0.14)]">
         <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#6754e7] via-[#9a7cf1] to-[#5cc8aa]" />
-        <div className="px-2 pb-3 pt-2 sm:px-3 sm:pb-4 sm:pt-3">
+        <div className="px-2 pb-2 pt-2 sm:px-3 sm:pb-2.5 sm:pt-2">
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-bold text-[#26232e]">
@@ -235,7 +239,7 @@ export function Estimator({
               Live estimate
             </span>
           </div>
-          <div className="mt-4 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-3 gap-2">
             {["Describe", "Details", "Estimate"].map((label, index) => (
               <div key={label} className="flex items-center gap-2">
                 <div className="min-w-0 flex-1">
@@ -245,7 +249,7 @@ export function Estimator({
                     }`}
                   />
                   <p
-                    className={`mt-1.5 truncate text-[10px] font-semibold sm:text-[11px] ${
+                    className={`mt-1 truncate text-[10px] font-semibold sm:text-[11px] ${
                       index <= activeStep ? "text-[#5b4abe]" : "text-[#a29ea8]"
                     }`}
                   >
@@ -260,7 +264,7 @@ export function Estimator({
         {stage === "describe" && (
           <form
             onSubmit={onSubmitDescription}
-            className="rounded-[20px] border border-[#e8e5ed] bg-[#fcfbfd] p-4 sm:p-5"
+            className="rounded-[20px] border border-[#e8e5ed] bg-[#fcfbfd] p-3.5"
           >
             <label
               htmlFor="project-description"
@@ -268,7 +272,7 @@ export function Estimator({
             >
               What do you want to build or improve?
             </label>
-            <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_210px]">
+            <div className="mt-2.5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">
               <div className="relative">
                 <textarea
                   id="project-description"
@@ -277,7 +281,7 @@ export function Estimator({
                     onDescriptionChange(event.target.value.slice(0, 500))
                   }
                   placeholder="For example: I need an ecommerce website for a clothing brand with payments, customer accounts and around 500 products..."
-                  className="min-h-[132px] w-full resize-none rounded-2xl border border-[#dedbe4] bg-white px-4 py-3.5 pr-11 text-[14px] leading-6 text-[#33303a] outline-none transition placeholder:text-[#aaa6b0] focus:border-[#7661e8] focus:ring-4 focus:ring-[#7661e8]/10 sm:min-h-[142px] sm:text-[15px] xl:min-h-[196px]"
+                  className="min-h-[128px] w-full resize-none rounded-2xl border border-[#dedbe4] bg-white px-4 py-3 pr-11 text-[14px] leading-6 text-[#33303a] outline-none transition placeholder:text-[#aaa6b0] focus:border-[#7661e8] focus:ring-4 focus:ring-[#7661e8]/10 sm:min-h-[140px] sm:text-[15px]"
                 />
                 <span className="absolute bottom-3 right-3 text-[10px] font-medium text-[#aaa6b1]">
                   {description.length}/500
@@ -300,14 +304,14 @@ export function Estimator({
                     <Icon name="rotate" className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <div className="mt-2.5 grid gap-1.5 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
                   {visibleExamples.map((example) => (
                     <button
                       key={example.label}
                       type="button"
                       onClick={() => onDescriptionChange(example.description)}
                       title={example.description}
-                      className={`group flex items-center justify-between gap-2 rounded-xl border px-2.5 py-2 text-left text-[11px] font-semibold leading-4 transition ${
+                      className={`group flex items-center justify-between gap-1.5 rounded-xl border px-2 py-1.5 text-left text-[11px] font-semibold leading-4 transition ${
                         description === example.description
                           ? "border-[#7460e4] bg-[#f4f1ff] text-[#5b4abe]"
                           : "border-[#e9e6ee] bg-[#fcfbfd] text-[#5f5b66] hover:border-[#c9c3e8] hover:bg-[#f8f7fc] hover:text-[#5b4abe]"
@@ -321,13 +325,13 @@ export function Estimator({
                     </button>
                   ))}
                 </div>
-                <p className="mt-2.5 text-[10px] leading-4 text-[#9a95a0]">
+                <p className="mt-2 text-[10px] leading-4 text-[#9a95a0]">
                   Tap one to fill the box — then edit it in your own words.
                 </p>
               </aside>
             </div>
 
-            <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
               <div>
                 <label className="block">
                   <span className="sr-only">Project category</span>
@@ -480,11 +484,11 @@ export function Estimator({
               </label>
             </div>
 
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-3 flex flex-col gap-2.5 sm:flex-row">
               <button
                 type="button"
                 onClick={onNewEstimate}
-                className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-[#ece9ef] px-4 py-3 text-sm font-bold text-[#3a3641] transition hover:bg-[#ddd8e2]"
+                className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-[#ece9ef] px-4 py-2.5 text-sm font-bold text-[#3a3641] transition hover:bg-[#ddd8e2]"
               >
                 <Icon name="plus" className="h-4 w-4" />
                 New estimate
@@ -492,7 +496,7 @@ export function Estimator({
               <button
                 type="submit"
                 disabled={!descriptionReady}
-                className="group flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#6754e7] px-5 py-3.5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(103,84,231,0.25)] transition hover:bg-[#5946d3] disabled:cursor-not-allowed disabled:bg-[#c8c3d6] disabled:shadow-none"
+                className="group flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#6754e7] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_25px_rgba(103,84,231,0.25)] transition hover:bg-[#5946d3] disabled:cursor-not-allowed disabled:bg-[#c8c3d6] disabled:shadow-none"
               >
                 Analyze my project
                 <Icon
@@ -501,12 +505,45 @@ export function Estimator({
                 />
               </button>
             </div>
-            <p className="mt-2 text-center text-[10px] font-medium text-[#95919c]">
+            <p className="mt-1.5 text-center text-[10px] font-medium text-[#95919c]">
               {descriptionReady
                 ? "Your description stays private and is never shared."
                 : "Add a few details above to continue."}
             </p>
           </form>
+        )}
+
+        {/* The AI could not estimate this yet (name / vague input): show what
+            it understood and ask its questions instead of guessing a price. */}
+        {stage === "describe" && needsInfo && (
+          <div className="mt-3 flex items-start gap-3 rounded-2xl border border-[#e4dff8] bg-[#faf9ff] p-3.5">
+            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#f0edff] text-[#6754e7]">
+              <Icon name="sparkles" className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#604fc6]">
+                A little more detail
+              </p>
+              <p className="mt-1 text-[13px] font-semibold leading-5 text-[#37333f]">
+                {needsInfo.understood}
+              </p>
+              <ul className="mt-1.5 space-y-1">
+                {needsInfo.questions.map((question) => (
+                  <li
+                    key={question}
+                    className="flex items-start gap-2 text-xs leading-5 text-[#797581]"
+                  >
+                    <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-[#c3b9f0]" />
+                    {question}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1.5 text-[11px] leading-4 text-[#9a95a0]">
+                Answer these above — size, location and key features are what
+                we need for an instant estimate.
+              </p>
+            </div>
+          </div>
         )}
 
         {stage === "questions" && (
@@ -729,7 +766,7 @@ export function Estimator({
           </div>
         )}
 
-        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 px-2 pb-1 pt-4 text-[10px] font-semibold text-[#918c98]">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 px-2 pb-1 pt-3 text-[10px] font-semibold text-[#918c98]">
           <span className="flex items-center gap-1.5">
             <Icon name="lock" className="h-3.5 w-3.5" />
             Private by default

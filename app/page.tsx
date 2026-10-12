@@ -173,6 +173,7 @@ export default function Home() {
       if (text.length < 8) {
         setAutoCategory(null);
         setAiCategoryLabel(null);
+        setNeedsInfo(null);
         return;
       }
       // Rule-based runs instantly as a preliminary guess (used only if AI fails)
@@ -184,7 +185,19 @@ export default function Home() {
       // AI pass — this is the PRIMARY source for category + pricing
       const requestId = ++aiRequestRef.current;
       void fetchAiAnalysis(text, locationId).then((ai) => {
-        if (!ai || requestId !== aiRequestRef.current || categoryManual) return;
+        if (requestId !== aiRequestRef.current || categoryManual) return;
+        // The "needs_info" verdict: the description is only a name or
+        // too vague to estimate. Show what the AI understood plus its
+        // questions — no category change, no estimate.
+        if (ai && ai.status === "needs_info") {
+          setNeedsInfo({
+            understood: ai.understood,
+            questions: ai.questions,
+          });
+          return;
+        }
+        setNeedsInfo(null);
+        if (!ai) return;
         const refined = analyzeProjectWithAi(text, ai);
         // AI's category is PRIMARY — it overrides the rule-based detection
         setCategoryId(refined.categoryId as CategoryId);
@@ -232,6 +245,14 @@ export default function Home() {
       setLocationId(shared.locationId);
       setSizeId(shared.sizeId);
       setQualityId(shared.qualityId);
+      // A cached "needs_info" card carries no estimate data, so the
+      // calculator treats it as "no cached AI analysis".
+      const cachedAi = getCachedAiAnalysis(
+        shared.description,
+        shared.locationId,
+      );
+      const aiAnalysis =
+        cachedAi && cachedAi.status === "needs_info" ? null : cachedAi;
       setEstimate(
         calculateEstimate(
           shared.description,
@@ -240,7 +261,7 @@ export default function Home() {
           shared.sizeId,
           shared.qualityId,
           currencyOverride,
-          getCachedAiAnalysis(shared.description, shared.locationId),
+          aiAnalysis,
         ),
       );
       setStage("complete");
@@ -380,7 +401,11 @@ export default function Home() {
       // its own project type, real-world pricing for this location and
       // realistic timeline drive the estimate. Only when the AI is
       // unavailable does the static USD config price the result.
-      const aiAnalysis = getCachedAiAnalysis(description, locationId);
+      const cachedAi = getCachedAiAnalysis(description, locationId);
+      // A cached "needs_info" card carries no estimate data, so the
+      // calculator treats it as "no cached AI analysis".
+      const aiAnalysis =
+        cachedAi && cachedAi.status === "needs_info" ? null : cachedAi;
       const result = calculateEstimate(
         description,
         categoryId,
@@ -433,6 +458,7 @@ export default function Home() {
     setQuestionStep(0);
     setStage("describe");
     setEstimate(null);
+    setNeedsInfo(null);
     setLoadedDraftId(null);
     setShareOpen(false);
     window.setTimeout(() => scrollToSection("estimator"), 50);
@@ -648,6 +674,7 @@ export default function Home() {
         qualityId={qualityId}
         questionStep={questionStep}
         estimate={estimate}
+        needsInfo={needsInfo}
         descriptionReady={descriptionReady}
         selectedCategory={selectedCategory}
         selectedLocation={selectedLocation}

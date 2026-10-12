@@ -28,11 +28,16 @@ const heroCss = `
 
 export function Hero(props: EstimatorProps) {
   return (
-    <section className="hero-surface relative">
+    <section className="hero-surface relative flex min-h-[calc(100svh-73px)] flex-col">
       <style>{heroCss}</style>
       <div className="hero-orb hero-orb-one" />
       <div className="hero-orb hero-orb-two" />
-      <div className="relative mx-auto grid min-w-0 max-w-[1200px] grid-cols-[minmax(0,1fr)] gap-12 px-5 pb-12 pt-14 sm:px-7 sm:pb-20 sm:pt-20 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] lg:items-center lg:gap-16 lg:pb-28 lg:pt-24">
+      {/* Fills the screen below the header (72px nav + 1px border). The grid
+          is the only in-flow child, so flex-1 makes it take the full remaining
+          height and items-center centres both columns vertically — no dead gap
+          above or below. On mobile the single column simply grows past
+          min-height and the page scrolls as usual. */}
+      <div className="relative mx-auto grid min-w-0 w-full max-w-[1200px] flex-1 grid-cols-[minmax(0,1fr)] items-center gap-8 px-5 py-6 sm:px-7 lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)] lg:gap-12 lg:py-5">
         <div className="min-w-0 max-w-xl">
           <div className="inline-flex items-center gap-2 rounded-full border border-[#ded9f4] bg-white/80 px-3 py-1.5 text-xs font-bold text-[#5d50a3] shadow-sm backdrop-blur">
             <span className="grid h-5 w-5 place-items-center rounded-full bg-[#ece8ff]">
@@ -43,7 +48,7 @@ export function Hero(props: EstimatorProps) {
 
           <h1
             aria-label={title}
-            className="mt-6 text-[2.75rem] font-bold leading-[1.04] tracking-[-0.055em] text-[#19171f] sm:text-[3.6rem] lg:text-[4.15rem]"
+            className="mt-5 text-[clamp(2.4rem,5vw,4rem)] font-bold leading-[1.04] tracking-[-0.055em] text-[#19171f]"
           >
             {words.map((word, w) => (
               <span key={w} className="inline">
@@ -68,12 +73,12 @@ export function Hero(props: EstimatorProps) {
             ))}
           </h1>
 
-          <p className="mt-6 max-w-lg text-base leading-7 text-[#6b6773] sm:text-lg sm:leading-8">
+          <p className="mt-5 max-w-lg text-base leading-7 text-[#6b6773] sm:text-lg sm:leading-8">
             Describe your project and get a localized cost range, clear scope
             and professional quotation in minutes not days.
           </p>
 
-          <div className="mt-7 flex flex-wrap gap-x-5 gap-y-3 text-sm font-medium text-[#5f5b66]">
+          <div className="mt-6 flex flex-wrap gap-x-5 gap-y-3 text-sm font-medium text-[#5f5b66]">
             {["No credit card", "Instant estimate", "Localized pricing"].map(
               (label) => (
                 <span key={label} className="flex items-center gap-2">
@@ -86,7 +91,7 @@ export function Hero(props: EstimatorProps) {
             )}
           </div>
 
-          <div className="mt-10 flex items-center gap-4 border-t border-[#e5e2ea] pt-6">
+          <div className="mt-8 flex items-center gap-4 border-t border-[#e5e2ea] pt-5">
             <div className="flex -space-x-2">
               {["JM", "AR", "SK"].map((initials, index) => (
                 <span
