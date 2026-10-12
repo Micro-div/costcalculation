@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Icon } from "@/components/common/Icon";
 import { Brand } from "./Brand";
 import type { EstimateItem, EstimateResult } from "@/types";
@@ -26,14 +28,6 @@ interface HeaderProps {
   onClearHistory: () => void;
 }
 
-// Mobile-only logo size (screens under 640px). Change 0.75 to resize:
-// 0.65 = smaller, 0.85 = bigger. Tablet and desktop are not affected.
-const headerCss = `
-@media (max-width: 639px) {
-  .header-logo { zoom: 0.75; }
-}
-`;
-
 // Shared look for the "Estimate my project" button (desktop + mobile menu).
 const estimateBtn =
   "group flex items-center gap-2 rounded-xl bg-[#313131] px-4 py-2.5 text-sm font-bold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#5b5b5c] active:scale-[0.98]";
@@ -50,6 +44,7 @@ export function Header({
 }: HeaderProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const historyRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!historyOpen) return;
@@ -77,25 +72,24 @@ export function Header({
     <header
       className={`relative z-50 border-b border-[#e9e7ed]/90 bg-white/90 ${historyOpen ? "" : "backdrop-blur-xl"}`}
     >
-      <style>{headerCss}</style>
       <nav
         className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between px-5 sm:px-7"
         aria-label="Main navigation"
       >
-        <div
+        <Link
+          href="/"
+          aria-label="CostCalc home"
           onClick={(e) => {
-            if (window.location.pathname === "/") {
+            if (pathname === "/") {
               e.preventDefault();
               window.scrollTo({ top: 0, behavior: "smooth" });
               onCloseMobileMenu();
             }
           }}
-          className="inline-block origin-left cursor-pointer transition-transform duration-[450ms] ease-[cubic-bezier(0.22,1,0.36,1)] hover:-translate-y-[3px] hover:scale-[1.07] active:scale-[0.96] motion-reduce:transition-none motion-reduce:hover:transform-none"
+          className="inline-flex items-center transition-transform duration-300 ease-out hover:-translate-y-0.5 hover:scale-105 active:scale-[0.97] motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:hover:scale-100 motion-reduce:active:scale-100"
         >
-          <span className="header-logo block">
-            <Brand />
-          </span>
-        </div>
+          <Brand />
+        </Link>
         <div className="hidden items-center gap-8 md:flex">
           <a
             href="#services"

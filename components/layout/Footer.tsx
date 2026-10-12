@@ -78,7 +78,7 @@ export function Footer() {
         <div className="mx-auto max-w-[1200px] px-5 pb-6 sm:px-7">
           <div className="grid grid-cols-2 items-start gap-x-6 gap-y-6 lg:grid-cols-[1.6fr_1fr_1fr_1fr] lg:gap-10">
             <div className="col-span-2 max-w-sm lg:col-span-1">
-              <div className="[&_img]:h-[170px] [&_img]:w-auto [&_img]:brightness-0 [&_img]:invert">
+              <div className="[&_img]:h-12 [&_img]:w-auto [&_img]:brightness-0 [&_img]:invert sm:[&_img]:h-14 lg:[&_img]:h-16">
                 <Brand />
               </div>
               <p className="mt-2 text-sm leading-5 text-white/60">
