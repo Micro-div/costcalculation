@@ -76,8 +76,8 @@ export function Footer() {
 
       <div className="bg-black text-white">
         <div className="mx-auto max-w-[1200px] px-5 pb-6 sm:px-7">
-          <div className="grid grid-cols-2 items-start gap-x-6 gap-y-6 lg:grid-cols-[1.6fr_1fr_1fr_1fr] lg:gap-10">
-            <div className="col-span-2 max-w-sm lg:col-span-1">
+          <div className="grid grid-cols-3 items-start gap-x-3 gap-y-6 sm:gap-x-6 lg:grid-cols-[1.6fr_1fr_1fr_1fr] lg:gap-10">
+            <div className="col-span-3 max-w-sm lg:col-span-1">
               <div className="[&_img]:h-12 [&_img]:w-auto [&_img]:brightness-0 [&_img]:invert sm:[&_img]:h-14 lg:[&_img]:h-16">
                 <Brand />
               </div>
@@ -102,8 +102,8 @@ export function Footer() {
 
             {columns.map((column) => (
               <div key={column.title}>
-                <h2 className="text-sm font-medium text-white">{column.title}</h2>
-                <ul className="mt-3 space-y-2 text-sm">
+                <h2 className="text-xs font-medium text-white sm:text-sm">{column.title}</h2>
+                <ul className="mt-3 space-y-2 break-words text-xs sm:text-sm">
                   {column.links.map((link) => (
                     <li key={link.label}>
                       <a href={link.href} className={`inline-flex min-h-[44px] items-center ${linkClass}`}>

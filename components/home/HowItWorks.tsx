@@ -5,10 +5,19 @@ import type { IconName } from "@/types";
 import { Icon } from "@/components/common/Icon";
 import { Reveal } from "@/components/common/Reveal";
 
-export function HowItWorks() {
+// Plays once, the first time the banner is scrolled into view.
+// The observer disconnects after the first play, so it stays static on later scrolls.
+function BannerVideo({
+  src,
+  className,
+  ariaLabel,
+}: {
+  src: string;
+  className: string;
+  ariaLabel: string;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Play the banner video once, the first time it is scrolled into view
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
@@ -31,20 +40,35 @@ export function HowItWorks() {
   }, []);
 
   return (
+    <video
+      ref={videoRef}
+      src={src}
+      muted
+      playsInline
+      preload="auto"
+      aria-label={ariaLabel}
+      className={className}
+    />
+  );
+}
+
+export function HowItWorks() {
+  return (
     <section
       id="how-it-works"
       className="scroll-mt-20 border-y border-[#e8e5ed] bg-white pb-20 sm:pb-28"
     >
-      {/* Banner video: full width, 1980x500, plays once when scrolled into view */}
-      <video
-        ref={videoRef}
+      {/* Mobile banner: 1080x800, plays once when scrolled into view */}
+      <BannerVideo
+        src="/baner.mp4"
+        ariaLabel="CostCalc — Know the cost before you build! Get your project price in minutes."
+        className="block aspect-[1080/800] h-auto w-full object-cover sm:hidden"
+      />
+      {/* Desktop banner: full width, 1980x500, plays once when scrolled into view */}
+      <BannerVideo
         src="/banner.mp4"
-        poster="/banner.png"
-        muted
-        playsInline
-        preload="auto"
-        aria-label="CostCalc — Know the cost before you build! Get your project price in minutes."
-        className="block aspect-[1980/500] h-auto w-full object-cover"
+        ariaLabel="CostCalc — Know the cost before you build! Get your project price in minutes."
+        className="hidden aspect-[1980/500] h-auto w-full object-cover sm:block"
       />
 
       <div className="mx-auto max-w-[1200px] px-5 pt-20 sm:px-7 sm:pt-28">
