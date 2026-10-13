@@ -232,7 +232,11 @@ input[type="number"] {
   }
 }
 
-/* ===== Word-Cycle Loader ===== */
+/* ============================================================
+   Loader (light, classic, calm) — NEW design.
+   Replaces the old word-cycle loader. No glitch/neon/mesh effects.
+   ============================================================ */
+
 .loader-overlay {
   position: fixed;
   inset: 0;
@@ -240,104 +244,90 @@ input[type="number"] {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #ffffff;
-  overflow: hidden;
+  background-color: #f8f8fb;
+  background-image: radial-gradient(
+    circle,
+    rgba(23, 21, 31, 0.04) 1px,
+    transparent 1px
+  );
+  background-size: 24px 24px;
 }
 
-.loader-fade-wrapper {
-  position: fixed;
-  inset: 0;
-  z-index: 9999;
+.loader-stack {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+  gap: 12px;
+  animation: loader-fade-up 400ms cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
-.loader-fade-wrapper--fading {
-  opacity: 0;
-  pointer-events: none;
+.loader-wordmark {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-weight: 600;
+  font-size: 36px;
+  letter-spacing: -0.04em;
+  line-height: 1;
 }
 
-.loader {
-  --bg-color: #ffffff;
-  color: rgb(124, 124, 124);
-  font-family: "Poppins", sans-serif;
-  font-weight: 500;
-  font-size: 25px;
-  -webkit-box-sizing: content-box;
-  box-sizing: content-box;
-  height: 40px;
-  padding: 10px 10px;
-  display: -webkit-box;
-  display: -ms-flexbox;
-  display: flex;
-  border-radius: 8px;
+.loader-wordmark-cost {
+  color: #17151f;
 }
 
-.loader-words {
-  overflow: hidden;
+.loader-wordmark-calc {
+  color: #6754e7;
+}
+
+.loader-progress {
+  width: 240px;
+  max-width: 70vw;
+}
+
+.loader-progress-track {
   position: relative;
+  width: 100%;
+  height: 2px;
+  background-color: #e7e5ee;
+  border-radius: 2px;
+  overflow: hidden;
 }
 
-.loader-words::after {
-  content: "";
+.loader-progress-fill {
   position: absolute;
-  inset: 0;
-  background: linear-gradient(var(--bg-color) 10%,
-      transparent 30%,
-      transparent 70%,
-      var(--bg-color) 90%);
-  z-index: 20;
-}
-
-.loader-word {
-  display: block;
+  top: 0;
+  left: 0;
   height: 100%;
-  padding-left: 6px;
-  color: #956afa;
-  animation: loaderWordSpin 4s infinite;
+  width: 0%;
+  background-color: #6754e7;
+  border-radius: 2px;
+  transition: width 50ms linear;
 }
 
-@keyframes loaderWordSpin {
-  10% {
-    -webkit-transform: translateY(-102%);
-    transform: translateY(-102%);
-  }
+.loader-percentage {
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: #7d788c;
+  font-variant-numeric: tabular-nums;
+}
 
-  25% {
-    -webkit-transform: translateY(-100%);
-    transform: translateY(-100%);
-  }
+.loader-status {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  font-size: 13px;
+  color: #7d788c;
+}
 
-  35% {
-    -webkit-transform: translateY(-202%);
-    transform: translateY(-202%);
+@keyframes loader-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
   }
-
-  50% {
-    -webkit-transform: translateY(-200%);
-    transform: translateY(-200%);
-  }
-
-  60% {
-    -webkit-transform: translateY(-302%);
-    transform: translateY(-302%);
-  }
-
-  75% {
-    -webkit-transform: translateY(-300%);
-    transform: translateY(-300%);
-  }
-
-  85% {
-    -webkit-transform: translateY(-402%);
-    transform: translateY(-402%);
-  }
-
-  100% {
-    -webkit-transform: translateY(-400%);
-    transform: translateY(-400%);
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 
@@ -393,95 +383,6 @@ input[type="number"] {
   }
 }
 
-@keyframes loaderLogoPulse {
-
-  0%,
-  100% {
-    box-shadow:
-      0 4px 18px rgba(103, 84, 231, 0.32),
-      0 2px 6px rgba(154, 124, 241, 0.22),
-      inset 0 1px 0 rgba(255, 255, 255, 0.35);
-    transform: scale(1);
-  }
-
-  50% {
-    box-shadow:
-      0 6px 26px rgba(103, 84, 231, 0.42),
-      0 3px 10px rgba(154, 124, 241, 0.28),
-      inset 0 1px 0 rgba(255, 255, 255, 0.35);
-    transform: scale(1.04);
-  }
-}
-
-@keyframes loaderDotPulse {
-
-  0%,
-  100% {
-    opacity: 1;
-    box-shadow: 0 0 10px rgba(103, 84, 231, 0.65);
-  }
-
-  50% {
-    opacity: 0.55;
-    box-shadow: 0 0 5px rgba(103, 84, 231, 0.35);
-  }
-}
-
-@keyframes loaderMeshShift {
-  0% {
-    transform: scale(1) rotate(0deg);
-  }
-
-  100% {
-    transform: scale(1.08) rotate(2.5deg);
-  }
-}
-
-@keyframes loaderAurora1 {
-
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-
-  35% {
-    transform: translate(70px, 55px) scale(1.12);
-  }
-
-  70% {
-    transform: translate(-35px, 70px) scale(0.94);
-  }
-}
-
-@keyframes loaderAurora2 {
-
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-  }
-
-  35% {
-    transform: translate(-60px, -45px) scale(1.1);
-  }
-
-  70% {
-    transform: translate(45px, -60px) scale(0.9);
-  }
-}
-
-@keyframes loaderAurora3 {
-
-  0%,
-  100% {
-    transform: translate(0, 0) scale(1);
-    opacity: 0.55;
-  }
-
-  50% {
-    transform: translate(-55px, 35px) scale(1.18);
-    opacity: 1;
-  }
-}
 
 /* Generating overlay */
 .generating-overlay {
@@ -533,27 +434,18 @@ input[type="number"] {
     transform: none;
     transition: none;
   }
-}
+}@media (prefers-reduced-motion: reduce) {
+  .loader-overlay {
+    background-image: none;
+  }
 
-@media (prefers-reduced-motion: reduce) {
-  .loader-fade-wrapper {
+  .loader-stack {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+
+  .loader-progress-fill {
     transition: none;
-  }
-
-  .loader-word {
-    animation: none;
-  }
-
-  .loader-ring-container {
-    opacity: 1;
-    animation: none;
-  }
-
-  .loader-status-row {
-    opacity: 1;
-
-
-
-    animation: none;
   }
 }

@@ -3,7 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Loader } from "./Loader";
 
-const MIN_DISPLAY_TIME = 2000;
+const MIN_DISPLAY_TIME = 1800; // visible + 600ms fade-out = 2400ms, under 2.5s
 const FADE_OUT_DURATION = 600;
 
 export function LoadingWrapper({ children }: { children: ReactNode }) {
