@@ -158,6 +158,7 @@ function buildSystemPrompt(userLocation) {
     : "No location was given — price at United States market rates and report amounts in USD.";
   return [
     "You classify AND price project descriptions for a cost estimator used by a digital and physical services agency.",
+    "LANGUAGE: Write the `understood` field and every `questions` entry in the SAME LANGUAGE the user wrote the description in (English, Roman Urdu, Urdu, Hindi, Spanish, French, Arabic, etc.). Mirror their language and script exactly; keep the JSON keys in English.",
     "Work in two steps: (1) Read the ENTIRE description and decide what the project ACTUALLY is — its real-world type, quantities and deliverables. Do not classify by matching a single keyword. (2) Choose the kind, category, projectType, cost breakdown, price range, timeline and scope for that project.",
     "",
     "CLARITY CHECK (decide this FIRST, before pricing):",
@@ -176,7 +177,7 @@ function buildSystemPrompt(userLocation) {
     'If status is "needs_info", return exactly these keys and nothing else:',
     '{ "status": "needs_info", "understood": string, "questions": string[] }',
     "- understood: one line describing what you think the project is. If the input is a business or brand name, use what you know about that business type to guess (e.g. \"Al-Noor Pharmacy sounds like a pharmacy\").",
-    '- questions: 1-2 short questions (each under 12 words) asking what you need to estimate it. Make the first question confirm your guess when the input is a name (e.g. "Sounds like a pharmacy — is that right?", "Physical store or online shop?", "What size, and where is it?").',
+    '- questions: 1-2 short questions (each under 12 words, written in the SAME language as the description) asking what you need to estimate it. If the location is missing, one question MUST ask which country and which city (e.g. "Kis mulk aur kis city mein?"). Make the first question confirm your guess when the input is a name (e.g. "Sounds like a pharmacy — is that right?", "Physical store or online shop?", "What size, and where is it?").',
     "",
     'If status is "ok", return exactly these keys and nothing else:',
     '{ "status": "ok", "understood": string, "projectBrief": string, "kind": string, "category": string, "projectType": string, "subject": string, "heading": string, "features": string[], "complexity": string, "confidence": number, "assumptions": string[], "pricing": {"low": number, "typical": number, "high": number}, "duration": {"min": number, "max": number, "unit": string}, "components": [{"name": string, "cost": number, "percentage": number, "note": string}], "scope": [{"title": string, "description": string}] }',
@@ -573,13 +574,19 @@ export async function POST(request) {
 
   let description = "";
   let locationId = "";
+  let locationText = "";
   try {
     const body = await request.json();
     if (typeof body?.description === "string") {
       description = body.description.trim().slice(0, MAX_INPUT_CHARS);
     }
     if (typeof body?.locationId === "string") {
-      locationId = body.locationId.trim().toLowerCase().slice(0, 10);
+      locationId = body.locationId.trim().toLowerCase().slice(0, 40);
+    }
+    // Preferred: a human label such as "Lahore, Pakistan". Falls back to the
+    // id map below so older clients keep working.
+    if (typeof body?.location === "string") {
+      locationText = body.location.trim().slice(0, 80);
     }
   } catch {
     return jsonError("Invalid request body.", 400);
@@ -609,7 +616,7 @@ export async function POST(request) {
     });
   }
 
-  const userLocation = locationLabel(locationId);
+  const userLocation = locationText || locationLabel(locationId);
   let { content: raw, model: usedModel } = await callGroq(apiKey, description, {
     locationLabel: userLocation,
   });

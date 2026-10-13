@@ -1,20 +1,50 @@
 import {
   allCurrencies,
   categories,
-  locations,
   projectSizes,
   qualityOptions,
 } from "@/constants";
 
 export type CategoryId = (typeof categories)[number]["id"];
-export type LocationId = (typeof locations)[number]["id"];
 export type ProjectSizeId = (typeof projectSizes)[number]["id"];
 export type QualityId = (typeof qualityOptions)[number]["id"];
 export type Category = (typeof categories)[number];
-export type Location = (typeof locations)[number];
 export type ProjectSize = (typeof projectSizes)[number];
 export type QualityOption = (typeof qualityOptions)[number];
 export type CurrencyCode = (typeof allCurrencies)[number];
+
+// A city inside a pricing country. The multiplier fine-tunes the country's
+// pricing (1 = the country baseline), so major hubs can cost a little more.
+export interface City {
+  name: string;
+  multiplier: number;
+}
+
+// A pricing country: its currency, sales tax / VAT, a baseline pricing
+// multiplier and the cities the user can pick from.
+export interface Country {
+  id: string;
+  country: string;
+  currency: CurrencyCode;
+  taxRate: number;
+  multiplier: number;
+  cities: City[];
+}
+
+// A selectable location = one city in one country, flattened for the app.
+export interface Location {
+  id: string;
+  countryId: string;
+  country: string;
+  city: string;
+  currency: CurrencyCode;
+  multiplier: number;
+  taxRate: number;
+}
+
+// Any city id ("us", "us-los-angeles", ...). Kept as a string so the country
+// list can keep growing without touching every call site.
+export type LocationId = string;
 
 export type Stage = "describe" | "questions" | "complete";
 

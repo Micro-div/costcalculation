@@ -308,6 +308,7 @@ export function getCachedAiAnalysis(
 export async function fetchAiAnalysis(
   description: string,
   locationId?: string | null,
+  locationLabel?: string | null,
 ): Promise<AiAnalysisResponse | null> {
   const key = cacheKey(description, locationId);
   if (!key) return null;
@@ -329,6 +330,9 @@ export async function fetchAiAnalysis(
         body: JSON.stringify({
           description,
           ...(locationId ? { locationId } : {}),
+          // Human label ("Lahore, Pakistan") so the AI prices at that city's
+          // real market rates instead of only the country-level default.
+          ...(locationLabel ? { location: locationLabel } : {}),
         }),
         signal: controller.signal,
       });
