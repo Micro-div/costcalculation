@@ -97,6 +97,23 @@ export function ChatWidget({
     startY: 0,
   });
 
+  // Sirf mobile aur tablet (touch devices). Laptop/desktop par cross nahi aata,
+  // chahe wo touchscreen laptop hi kyun na ho.
+  const isMobileOrTablet =
+    typeof window !== "undefined" &&
+    window.matchMedia("(pointer: coarse)").matches;
+
+  const [showDropZone, setShowDropZone] = useState(false);
+  const [crossClosing, setCrossClosing] = useState(false);
+  const [chatHidden, setChatHidden] = useState(false);
+  const [fabDropping, setFabDropping] = useState(false);
+  const [overCross, setOverCross] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const [closing, setClosing] = useState(false);
+  const crossRef = useRef<HTMLDivElement>(null);
+  const crossTimerRef = useRef<number | null>(null);
+  const panelRef = useRef<HTMLElement>(null);
+
   const cities = useMemo(
     () => locations.filter((loc) => loc.countryId === countryId),
     [locations, countryId],
@@ -156,6 +173,48 @@ export function ChatWidget({
     setCreatingBrief(null);
     setActiveBrief(null);
   };
+
+  // Minimize (keep the conversation): plays a smooth close animation first.
+  const minimizeChat = useCallback(() => {
+    setClosing(true);
+    window.setTimeout(() => {
+      setOpen(false);
+      setClosing(false);
+    }, 200);
+  }, []);
+
+  // Clicking anywhere outside the panel closes it smoothly (keeps the chat).
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (e: PointerEvent) => {
+      const target = e.target as Node;
+      if (panelRef.current && !panelRef.current.contains(target)) {
+        minimizeChat();
+      }
+    };
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => document.removeEventListener("pointerdown", handlePointerDown);
+  }, [open, minimizeChat]);
+
+  // Cross ko turant hata na ho — pehle smooth shrink-out animation chalao,
+  // phir unmount karo (professional feel).
+  const closeDropZone = (after?: () => void) => {
+    if (crossTimerRef.current) window.clearTimeout(crossTimerRef.current);
+    setCrossClosing(true);
+    crossTimerRef.current = window.setTimeout(() => {
+      setShowDropZone(false);
+      setCrossClosing(false);
+      crossTimerRef.current = null;
+      after?.();
+    }, 260);
+  };
+
+  // Pending cross timer ko unmount par clear karo.
+  useEffect(() => {
+    return () => {
+      if (crossTimerRef.current) window.clearTimeout(crossTimerRef.current);
+    };
+  }, []);
 
   const sendMessage = async (rawText: string) => {
     const text = rawText.trim();
@@ -254,6 +313,18 @@ export function ChatWidget({
       startX: e.clientX,
       startY: e.clientY,
     };
+    setDragging(true);
+    if (isMobileOrTablet) {
+      // Agar pichhli baar ka exit animation chal raha ho to cancel karo.
+      if (crossTimerRef.current) {
+        window.clearTimeout(crossTimerRef.current);
+        crossTimerRef.current = null;
+      }
+      setCrossClosing(false);
+      setFabDropping(false);
+      setShowDropZone(true);
+      setOverCross(false);
+    }
     btn.setPointerCapture(e.pointerId);
   };
 
@@ -271,6 +342,18 @@ export function ChatWidget({
       window.innerHeight - FAB_SIZE - 8,
     );
     setFabPos({ left, top });
+
+    if (isMobileOrTablet && crossRef.current) {
+      const crossRect = crossRef.current.getBoundingClientRect();
+      const fabCenterX = left + FAB_SIZE / 2;
+      const fabCenterY = top + FAB_SIZE / 2;
+      const isOver =
+        fabCenterX > crossRect.left &&
+        fabCenterX < crossRect.right &&
+        fabCenterY > crossRect.top &&
+        fabCenterY < crossRect.bottom;
+      setOverCross(isOver);
+    }
   };
 
   const onFabPointerUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
@@ -285,7 +368,28 @@ export function ChatWidget({
     const moved =
       Math.abs(e.clientX - drag.startX) + Math.abs(e.clientY - drag.startY) >
       DRAG_CLICK_THRESHOLD;
-    if (!moved) setOpen(true);
+
+    setDragging(false);
+    if (isMobileOrTablet) {
+      const dropped = overCross;
+      if (dropped) {
+        // Chatbot cross par drop hua: chatbot bhi smooth shrink ho kar gayab.
+        setFabDropping(true);
+      }
+      closeDropZone(() => {
+        setOverCross(false);
+        setFabDropping(false);
+        if (dropped) {
+          setChatHidden(true);
+          setFabPos(null);
+        }
+      });
+    }
+
+    if (!moved) {
+      setOpen(true);
+      setChatHidden(false);
+    }
   };
 
   const onlyGreeting = messages.length <= 1 && !thinking;
@@ -293,7 +397,7 @@ export function ChatWidget({
   return (
     <>
       {/* Floating launcher — draggable. Hidden while the panel is open. */}
-      {!open && (
+      {!open && !chatHidden && (
         <button
           type="button"
           aria-label="Open the CostCalc assistant"
@@ -303,14 +407,28 @@ export function ChatWidget({
           onClick={(e) => {
             // Keyboard activation fires a click with detail 0; pointer clicks
             // are handled in onPointerUp (so a drag never opens the panel).
-            if (e.detail === 0) setOpen(true);
+            if (e.detail === 0) {
+              setOpen(true);
+              setChatHidden(false);
+            }
           }}
-          style={
-            fabPos
+          style={{
+            ...(fabPos
               ? { left: fabPos.left, top: fabPos.top, right: "auto", bottom: "auto" }
-              : undefined
-          }
-          className="group fixed bottom-6 right-6 z-[80] grid h-[58px] w-[58px] touch-none select-none place-items-center rounded-full bg-gradient-to-br from-[#6754e7] to-[#8b5cf6] text-white shadow-[0_12px_34px_rgba(103,84,231,0.45)] transition-transform duration-300 hover:scale-[1.06] active:scale-95"
+              : {}),
+            // Mobile/tablet drag: chatbot ko prominent (bara + gehri shadow) aur
+            // cross sign se upar (z-index) rakho.
+            ...(dragging && isMobileOrTablet
+              ? {
+                  transform: "scale(1.12)",
+                  boxShadow: "0 20px 55px rgba(103,84,231,0.6)",
+                  zIndex: 96,
+                }
+              : {}),
+            // Drop hone par cross ke upar rakho jab tak shrink-out chal raha ho.
+            ...(fabDropping ? { zIndex: 96 } : {}),
+          }}
+          className={`group fixed bottom-6 right-6 z-[80] grid h-[58px] w-[58px] touch-none select-none place-items-center rounded-full bg-gradient-to-br from-[#6754e7] to-[#8b5cf6] text-white shadow-[0_12px_34px_rgba(103,84,231,0.45)] transition-transform duration-300 hover:scale-[1.06] active:scale-95 ${fabDropping ? "fab-shrink-out" : ""} ${chatHidden ? "hidden" : ""}`}
         >
           <Icon name="bot" className="relative h-6 w-6" />
           <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5">
@@ -319,11 +437,40 @@ export function ChatWidget({
         </button>
       )}
 
+      {/* Mobile/tablet dismiss cross - appears while dragging chatbot */}
+      {showDropZone && isMobileOrTablet && (
+        <div
+          ref={crossRef}
+          className={`fixed bottom-8 left-1/2 z-[95] grid h-14 w-14 touch-none select-none place-items-center rounded-full text-white transition-all duration-150 ease-out ${crossClosing ? "dismiss-cross--closing" : "dismiss-cross"}`}
+          style={{
+            transform: "translateX(-50%)",
+            // Base: halka dark grey. Jab chatbot cross ke upar aaye (overCross):
+            // color thoda faded grey ho jaye + gird ek halka circle shadow aaye.
+            // (Size waisa hi — na bara na chota.)
+            backgroundColor: overCross
+              ? "rgba(96, 92, 106, 0.72)"
+              : "rgba(43, 40, 50, 0.85)",
+            opacity: overCross ? 0.8 : 0.92,
+            boxShadow: overCross
+              ? "0 0 0 10px rgba(0, 0, 0, 0.09), 0 12px 30px rgba(0, 0, 0, 0.3)"
+              : "0 8px 24px rgba(0, 0, 0, 0.26)",
+          }}
+        >
+          <Icon name="close" className="h-5 w-5 transition-all duration-150" />
+          {overCross && (
+            <span className="absolute -top-6 whitespace-nowrap rounded-full bg-black/90 px-2 py-0.5 text-[10px] font-medium text-white shadow-lg">
+              Drop to hide
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Chat panel */}
       {open && (
         <section
+          ref={panelRef}
           aria-label="CostCalc assistant"
-          className="fixed bottom-6 right-6 z-[80] flex h-[min(560px,calc(100vh-3rem))] w-[min(388px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl border border-[#e8e5ed] bg-white shadow-[0_28px_70px_rgba(30,20,60,0.28)]"
+          className={`fixed bottom-6 right-6 z-[80] flex h-[min(560px,calc(100vh-3rem))] w-[min(388px,calc(100vw-1.5rem))] flex-col overflow-hidden rounded-3xl border border-[#e8e5ed] bg-white shadow-[0_28px_70px_rgba(30,20,60,0.28)] ${closing ? "chat-panel--closing" : "chat-panel"}`}
         >
           {/* Header */}
           <header className="flex items-center justify-between gap-2 bg-gradient-to-br from-[#6754e7] to-[#8b5cf6] px-4 py-3 text-white">
@@ -350,7 +497,7 @@ export function ChatWidget({
               </button>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={minimizeChat}
                 aria-label="Minimize chat"
                 title="Minimize"
                 className="grid h-8 w-8 place-items-center rounded-lg text-white/90 transition hover:bg-white/20"
