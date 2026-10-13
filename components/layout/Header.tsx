@@ -69,9 +69,7 @@ export function Header({
   };
 
   return (
-    <header
-      className={`relative z-50 border-b border-[#e9e7ed]/90 bg-white/90 ${historyOpen ? "" : "backdrop-blur-xl"}`}
-    >
+    <header className="sticky top-0 z-50 border-b border-[#e9e7ed]/90 bg-white/85 backdrop-blur-xl supports-[backdrop-filter]:bg-white/70">
       <nav
         className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between px-5 sm:px-7"
         aria-label="Main navigation"
@@ -80,13 +78,13 @@ export function Header({
           href="/"
           aria-label="CostCalc home"
           onClick={(e) => {
+            onCloseMobileMenu();
             if (pathname === "/") {
               e.preventDefault();
               window.scrollTo({ top: 0, behavior: "smooth" });
-              onCloseMobileMenu();
             }
           }}
-          className="inline-flex items-center transition-transform duration-300 ease-out hover:-translate-y-0.5 hover:scale-105 active:scale-[0.97] motion-reduce:transition-none motion-reduce:hover:translate-y-0 motion-reduce:hover:scale-100 motion-reduce:active:scale-100"
+          className="brand-link inline-flex items-center leading-none"
         >
           <Brand />
         </Link>

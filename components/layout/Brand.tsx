@@ -8,7 +8,7 @@ export function Brand() {
       width={276}
       height={88}
       priority
-      className="h-10 w-auto sm:h-12"
+      className="block h-10 w-auto sm:h-12"
     />
   );
 }

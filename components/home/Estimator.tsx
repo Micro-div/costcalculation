@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import {
   categories,
+  countries,
   exampleProjects,
   locations,
   projectSizes,
@@ -470,10 +471,16 @@ export function Estimator({
                     }
                     className="h-11 w-full appearance-none rounded-xl border border-[#dedbe4] bg-white pl-10 pr-9 text-sm font-semibold text-[#403c47] outline-none transition focus:border-[#7661e8] focus:ring-4 focus:ring-[#7661e8]/10"
                   >
-                    {locations.map((location) => (
-                      <option key={location.id} value={location.id}>
-                        {location.city}, {location.country}
-                      </option>
+                    {countries.map((country) => (
+                      <optgroup key={country.id} label={country.country}>
+                        {locations
+                          .filter((loc) => loc.countryId === country.id)
+                          .map((loc) => (
+                            <option key={loc.id} value={loc.id}>
+                              {loc.city}
+                            </option>
+                          ))}
+                      </optgroup>
                     ))}
                   </select>
                   <Icon

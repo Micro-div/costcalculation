@@ -1,5 +1,6 @@
 import {
   categories,
+  countries,
   locations,
   projectSizes,
   qualityOptions,
@@ -170,27 +171,52 @@ export function formatCompactCurrency(value: number, location: Location) {
 }
 
 export function detectLocation(description: string): LocationId {
-  const value = description.toLowerCase();
-  const matches: Array<{ words: string[]; id: LocationId }> = [
-    { words: ["canada", "toronto", "vancouver", "montreal"], id: "ca" },
-    {
-      words: ["united states", "usa", "new york", "san francisco", "texas"],
-      id: "us",
-    },
-    { words: ["united kingdom", "uk", "london", "manchester"], id: "uk" },
-    { words: ["dubai", "uae", "abu dhabi"], id: "ae" },
-    { words: ["pakistan", "karachi", "lahore", "islamabad"], id: "pk" },
-    { words: ["india", "mumbai", "delhi", "bangalore"], id: "in" },
-    { words: ["australia", "sydney", "melbourne"], id: "au" },
-    { words: ["germany", "berlin", "munich"], id: "de" },
-    { words: ["singapore"], id: "sg" },
-    { words: ["nigeria", "lagos", "abuja"], id: "ng" },
-  ];
+  return matchLocation(description) ?? "us";
+}
 
-  return (
-    matches.find(({ words }) => words.some((word) => value.includes(word)))
-      ?.id ?? "us"
-  );
+// Like detectLocation, but returns null when the text does NOT explicitly name
+// a city or country. The chat uses this so a location it finds in the
+// conversation can update the picker, while an unrelated message leaves the
+// user's current choice untouched.
+export function matchLocation(text: string): LocationId | null {
+  const value = ` ${String(text ?? "").toLowerCase()} `;
+
+  // 1) City names first (most specific): "lahore" wins over "pakistan".
+  for (const loc of locations) {
+    if (value.includes(loc.city.toLowerCase())) return loc.id;
+  }
+
+  // 2) Country names -> their first city.
+  for (const country of countries) {
+    if (value.includes(country.country.toLowerCase())) {
+      const first = locations.find((loc) => loc.id === country.id);
+      if (first) return first.id;
+    }
+  }
+
+  // 3) Common aliases and short forms.
+  const aliases: Array<{ words: string[]; id: LocationId }> = [
+    { words: ["usa", "america", "united states"], id: "us" },
+    { words: ["uk", "britain", "england", "scotland", "wales"], id: "uk" },
+    { words: ["uae", "emirates"], id: "ae" },
+    { words: ["holland"], id: "nl" },
+    { words: ["saudi"], id: "sa" },
+  ];
+  for (const { words, id } of aliases) {
+    if (words.some((word) => value.includes(word))) {
+      const loc = locations.find((item) => item.id === id);
+      if (loc) return loc.id;
+    }
+  }
+
+  return null;
+}
+
+// A human label for the pricing location, sent to the AI so it can price at
+// that city's real market rates (e.g. "Lahore, Pakistan").
+export function locationLabel(locationId: LocationId): string {
+  const loc = locations.find((item) => item.id === locationId);
+  return loc ? `${loc.city}, ${loc.country}` : "";
 }
 
 export function calculateEstimate(

@@ -9,12 +9,14 @@ import { Hero } from "@/components/home/Hero";
 import { HowItWorks } from "@/components/home/HowItWorks";
 import { ServicesSection } from "@/components/home/ServicesSection";
 import { WhyCostCalc } from "@/components/home/WhyCostCalc";
+import { ChatWidget } from "@/components/chat/ChatWidget";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
 import { QuoteModal } from "@/components/quotation/QuoteModal";
 import { ShareModal } from "@/components/share/ShareModal";
 import {
   categories,
+  countries,
   locations,
   projectSizes,
   qualityOptions,
@@ -22,6 +24,7 @@ import {
 import {
   calculateEstimate,
   detectLocation,
+  locationLabel,
   scrollToSection,
 } from "@/lib";
 import { fetchAiAnalysis, getCachedAiAnalysis } from "@/lib/aiAnalysis";
@@ -184,29 +187,31 @@ export default function Home() {
       }
       // AI pass — this is the PRIMARY source for category + pricing
       const requestId = ++aiRequestRef.current;
-      void fetchAiAnalysis(text, locationId).then((ai) => {
-        if (requestId !== aiRequestRef.current || categoryManual) return;
-        // The "needs_info" verdict: the description is only a name or
-        // too vague to estimate. Show what the AI understood plus its
-        // questions — no category change, no estimate.
-        if (ai && ai.status === "needs_info") {
-          setNeedsInfo({
-            understood: ai.understood,
-            questions: ai.questions,
-          });
-          return;
-        }
-        setNeedsInfo(null);
-        if (!ai) return;
-        const refined = analyzeProjectWithAi(text, ai);
-        // AI's category is PRIMARY — it overrides the rule-based detection
-        setCategoryId(refined.categoryId as CategoryId);
-        setAutoCategory(refined.aiCategory ?? refined.category);
-        // Store the AI's own category label for the dropdown
-        if (refined.aiCategory) {
-          setAiCategoryLabel(refined.aiCategory);
-        }
-      });
+      void fetchAiAnalysis(text, locationId, locationLabel(locationId)).then(
+        (ai) => {
+          if (requestId !== aiRequestRef.current || categoryManual) return;
+          // The "needs_info" verdict: the description is only a name or
+          // too vague to estimate. Show what the AI understood plus its
+          // questions — no category change, no estimate.
+          if (ai && ai.status === "needs_info") {
+            setNeedsInfo({
+              understood: ai.understood,
+              questions: ai.questions,
+            });
+            return;
+          }
+          setNeedsInfo(null);
+          if (!ai) return;
+          const refined = analyzeProjectWithAi(text, ai);
+          // AI's category is PRIMARY — it overrides the rule-based detection
+          setCategoryId(refined.categoryId as CategoryId);
+          setAutoCategory(refined.aiCategory ?? refined.category);
+          // Store the AI's own category label for the dropdown
+          if (refined.aiCategory) {
+            setAiCategoryLabel(refined.aiCategory);
+          }
+        },
+      );
     }, 400);
     return () => window.clearTimeout(handle);
   }, [description, categoryManual, locationId]);
@@ -424,20 +429,71 @@ export default function Home() {
       setLoadedDraftId(null);
       setIsGenerating(false);
 
-      // Nayi estimate generate hote hi auto-save draft mein
-      const draftEntry: HistoryEntry = {
-        id: `draft-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-        type: "draft",
-        title: result.projectTitle,
-        savedAt: new Date().toISOString(),
-        data: result,
-      };
-      const updated = [draftEntry, ...history].slice(0, 50);
-      setHistory(updated);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+      // NOTE: estimates are NOT auto-saved anymore. They only appear in
+      // History when the user taps "Save" on the result card.
 
       window.setTimeout(() => scrollToSection("estimate-result"), 80);
     }, 2000);
+  };
+
+  // Builds an estimate straight from the chatbot: it fills the estimator with
+  // the chat's project brief, detects/uses the chosen city, asks the AI to
+  // price it (with a graceful rule-based fallback when offline), then shows
+  // the full result. This is what the chat's "Create estimate" button calls.
+  const createEstimateFromChat = async (
+    text: string,
+    chosenLocationId?: LocationId,
+  ) => {
+    const clean = text.trim();
+    if (clean.length < 3) return;
+
+    setDescription(clean);
+    const resolvedLocationId =
+      chosenLocationId ||
+      (locationSelectedManually ? locationId : detectLocation(clean));
+    const loc =
+      locations.find((item) => item.id === resolvedLocationId) ?? locations[0];
+
+    setLocationId(loc.id);
+    setLocationSelectedManually(true);
+    setCategoryManual(false);
+    setIsGenerating(true);
+
+    try {
+      // Ask the AI to price this brief for the chosen city. If the AI is
+      // unavailable the calculator falls back to the static config, so this
+      // still produces a solid estimate while offline.
+      const ai = await fetchAiAnalysis(
+        clean,
+        loc.id,
+        `${loc.city}, ${loc.country}`,
+      );
+      const aiAnalysis =
+        ai && ai.status === "needs_info" ? null : ai;
+      const detectedCategory = (
+        analyzeProjectWithAi(clean, aiAnalysis).categoryId as CategoryId
+      );
+      setCategoryId(detectedCategory);
+
+      // Small, intentional pause so the "generating" state feels alive.
+      await new Promise((resolve) => window.setTimeout(resolve, 1400));
+
+      const result = calculateEstimate(
+        clean,
+        detectedCategory,
+        loc.id,
+        sizeId,
+        qualityId,
+        currencyOverride,
+        aiAnalysis,
+      );
+      setEstimate(result);
+      setStage("complete");
+      setLoadedDraftId(null);
+      window.setTimeout(() => scrollToSection("estimate-result"), 120);
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   const resetEstimate = () => {
@@ -649,10 +705,7 @@ export default function Home() {
   const descriptionReady = description.trim().length >= 12;
 
   return (
-    <main
-      id="top"
-      className="min-h-screen overflow-x-hidden bg-[#f8f8fb] text-[#1d1b24]"
-    >
+    <>
       <Header
         mobileMenuOpen={mobileMenuOpen}
         onToggleMobileMenu={() => setMobileMenuOpen((open) => !open)}
@@ -663,6 +716,11 @@ export default function Home() {
         onDeleteHistory={deleteHistoryEntry}
         onClearHistory={clearHistory}
       />
+
+      <main
+        id="top"
+        className="min-h-screen overflow-x-hidden bg-[#f8f8fb] text-[#1d1b24]"
+      >
 
       <Hero
         stage={stage}
@@ -768,6 +826,13 @@ export default function Home() {
       <Toast message={errorToast} error />
 
       <GeneratingOverlay showing={isGenerating} />
-    </main>
+      </main>
+
+      <ChatWidget
+        countries={countries}
+        locations={locations}
+        onCreateEstimate={createEstimateFromChat}
+      />
+    </>
   );
 }

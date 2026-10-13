@@ -45,6 +45,33 @@ select {
   background: #dcd4ff;
 }
 
+/* Navbar logo: enlarge ONLY while the pointer is genuinely over the logo, and
+   never on touch/small-screen devices where :hover tends to stick. This keeps
+   the logo from looking "already enlarged" when the mouse is still far away. */
+@media (hover: hover) and (pointer: fine) {
+  .brand-link {
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: center;
+  }
+
+  .brand-link:hover {
+    transform: scale(1.04);
+  }
+
+  .brand-link:active {
+    transform: scale(0.97);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-link,
+  .brand-link:hover,
+  .brand-link:active {
+    transform: none;
+    transition: none;
+  }
+}
+
 .hero-surface {
   background:
     linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(248, 248, 251, 0.9) 78%),
