@@ -9,6 +9,8 @@ import { Hero } from "@/components/home/Hero";
 import { HowItWorks } from "@/components/home/HowItWorks";
 import { ServicesSection } from "@/components/home/ServicesSection";
 import { WhyCostCalc } from "@/components/home/WhyCostCalc";
+import { ImageCarousel } from "@/components/home/ImageCarousel";
+import { AnimationSection } from "@/components/home/AnimationSection";
 import { ChatWidget } from "@/components/chat/ChatWidget";
 import { Footer } from "@/components/layout/Footer";
 import { Header } from "@/components/layout/Header";
@@ -777,6 +779,10 @@ export default function Home() {
         onViewEstimate={() => scrollToSection("estimate-result")}
         onNewEstimate={resetEstimate}
       />
+
+      <ImageCarousel />
+
+      <AnimationSection />
 
       {estimate && (
         <EstimateResultSection

@@ -180,17 +180,43 @@ export function Icon({
           <path d="m5 3-.3.9A2 2 0 0 1 3.3 4.5L2.5 5l.8.5a2 2 0 0 1 1.4 1.6L5 8l.3-.9a2 2 0 0 1 1.4-1.6l.8-.5-.8-.5A2 2 0 0 1 5.3 3.9L5 3ZM19 16l-.4 1.2a2.2 2.2 0 0 1-1.4 1.4L16 19l.8.4a2.2 2.2 0 0 1 1.4 1.4L19 22l.4-1.2a2.2 2.2 0 0 1 1.4-1.4l.8-.4-.8-.4a2.2 2.2 0 0 1-1.4-1.4L19 16Z" />
         </svg>
       );
-    case "smartphone":
+    case "star":
       return (
         <svg {...props}>
-          <rect x="6" y="2" width="12" height="20" rx="3" />
-          <path d="M10 5h4M11 19h2" />
+          <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+        </svg>
+      );
+    case "chevron-left":
+      return (
+        <svg {...props}>
+          <path d="m15 18-6-6 6-6" />
+        </svg>
+      );
+    case "chevron-right":
+      return (
+        <svg {...props}>
+          <path d="m9 18 6-6-6-6" />
+        </svg>
+      );
+    case "target":
+      return (
+        <svg {...props}>
+          <circle cx="12" cy="12" r="10" />
+          <circle cx="12" cy="12" r="6" />
+          <circle cx="12" cy="12" r="2" />
         </svg>
       );
     case "trending":
       return (
         <svg {...props}>
           <path d="m3 17 6-6 4 4 8-8M15 7h6v6" />
+        </svg>
+      );
+    case "smartphone":
+      return (
+        <svg {...props}>
+          <rect x="6" y="2" width="12" height="20" rx="3" />
+          <path d="M10 5h4M11 19h2" />
         </svg>
       );
     case "users":

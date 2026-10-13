@@ -58,6 +58,8 @@ export type IconName =
   | "calculator"
   | "check"
   | "chevron-down"
+  | "chevron-left"
+  | "chevron-right"
   | "clock"
   | "close"
   | "code"
@@ -78,6 +80,8 @@ export type IconName =
   | "shopping-bag"
   | "sparkles"
   | "smartphone"
+  | "star"
+  | "target"
   | "trending"
   | "users"
   | "zap";

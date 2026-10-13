@@ -492,14 +492,14 @@ export function Estimator({
             </div>
 
             <div className="mt-3 flex flex-col gap-2.5 sm:flex-row">
-              <button
+              {/* <button
                 type="button"
                 onClick={onNewEstimate}
                 className="flex items-center justify-center gap-1.5 whitespace-nowrap rounded-xl bg-[#ece9ef] px-4 py-2.5 text-sm font-bold text-[#3a3641] transition hover:bg-[#ddd8e2]"
               >
                 <Icon name="plus" className="h-4 w-4" />
                 New estimate
-              </button>
+              </button> */}
               <button
                 type="submit"
                 disabled={!descriptionReady}
