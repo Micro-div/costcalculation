@@ -79,7 +79,8 @@ export function ImageCarousel() {
       id="image-carousel"
       className="scroll-mt-20 bg-white py-16 sm:py-24"
     >
-      <div className="mx-auto max-w-[1200px] px-5 sm:px-7">
+      <Reveal>
+        <div className="mx-auto max-w-[1200px] px-5 sm:px-7">
         {/* Section Header */}
         <div className="mb-12 text-center">
           <Reveal>
@@ -96,6 +97,11 @@ export function ImageCarousel() {
             <p className="text-base leading-7 text-[#6b6773] sm:text-lg">
               Explore a curated selection of project types we help estimate.
               Each category represents real-world development work with localized pricing.
+            </p>
+          </Reveal>
+          <Reveal delay={300} className="mt-6">
+            <p className="text-center text-lg font-semibold text-[#3c3943] tracking-[-0.01em]">
+              Every great project starts with clear numbers.
             </p>
           </Reveal>
         </div>
@@ -221,6 +227,7 @@ export function ImageCarousel() {
           </div>
         </Reveal>
       </div>
+      </Reveal>
     </section>
   );
 }

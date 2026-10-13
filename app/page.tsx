@@ -780,6 +780,8 @@ export default function Home() {
         onNewEstimate={resetEstimate}
       />
 
+      <ServicesSection onChooseCategory={chooseCategory} />
+
       <ImageCarousel />
 
       <AnimationSection />
@@ -793,8 +795,6 @@ export default function Home() {
           onNewEstimate={resetEstimate}
         />
       )}
-
-      <ServicesSection onChooseCategory={chooseCategory} />
 
       <HowItWorks />
 

@@ -55,22 +55,22 @@ function BannerVideo({
 
 // ---------------------------------------------------------------
 // WATCH BANNER (image slider + text + animated wave strip)
-// Images go in public/watch/ (320 x 450 px, WebP). Edit texts below.
+// Images go in public/ (web.png, uiux.png, ecommerce.png, cost.png).
 // ---------------------------------------------------------------
 const watchImages = [
-  { src: "/watch/watch-1.webp", alt: "Watch 1" },
-  { src: "/watch/watch-2.webp", alt: "Watch 2" },
-  { src: "/watch/watch-3.webp", alt: "Watch 3" },
-  { src: "/watch/watch-4.webp", alt: "Watch 4" },
+  { src: "/web.png", alt: "Web development" },
+  { src: "/uiux.png", alt: "UI/UX design" },
+  { src: "/ecommerce.png", alt: "E-commerce" },
+  { src: "/cost.png", alt: "Cost estimation" },
 ];
 
 const watchText = {
-  badge: "Premium Watch Collection",
-  title: "Timeless Elegance For Every Moment",
-  text: "Discover premium watches designed for modern lifestyles. From classic sophistication to contemporary style, every timepiece is selected to elevate your everyday look.",
-  button: "Explore Collection",
-  buttonHref: "#",
-  strip: "🛍️ OUTLET COMING SOON — Get Ready for Amazing Deals & Exclusive Collections ✨",
+  badge: "PROJECT SHOWCASE",
+  title: "Plan Your Project With Confidence",
+  text: "Get instant, localized project cost estimates with clear scope and professional quotations. From web apps to AI solutions, know the investment before you commit.",
+  button: "Get Estimate",
+  buttonHref: "#estimator",
+  strip: "",
 };
 
 const watchCss = `
@@ -86,21 +86,19 @@ const watchCss = `
             animation: wb-scroll var(--wb-speed) linear infinite; }
 .wb-slider:hover .wb-track { animation-play-state: paused; }
 .wb-track img { height: var(--wb-h); width: 156px; object-fit: cover; border-radius: 14px;
-                background: #111; flex: none; display: block; }
-.wb-track img:nth-child(4n+2) { width: 150px; }
-.wb-track img:nth-child(4n+3) { width: 176px; }
-.wb-track img:nth-child(4n+4) { width: 150px; }
+                flex: none; display: block; }
 @keyframes wb-scroll { to { transform: translateX(calc(-50% - var(--wb-gap) / 2)); } }
 
 .wb-badge { display: inline-block; background: #000; color: #fff; height: 26px; line-height: 26px;
             padding: 0 14px; border-radius: 13px; font-size: 10px; font-weight: 800;
             letter-spacing: 2.2px; text-transform: uppercase; }
 .wb-title { margin: 14px 0 12px; font-size: 29px; line-height: 1.2; font-weight: 700;
-            letter-spacing: .4px; color: #000; }
+            letter-spacing: .4px; color: #6954df; }
 .wb-text { margin: 0 0 22px; max-width: 385px; font-size: 13.5px; line-height: 1.7; color: #444; }
-.wb-btn { display: inline-block; background: #000; color: #fff; text-decoration: none;
-          height: 40px; line-height: 40px; padding: 0 26px; border-radius: 6px;
-          font-size: 10.5px; font-weight: 800; letter-spacing: 1.6px; }
+.wb-btn { display: inline-flex; align-items: center; gap: 8px; background: #211e29; color: #fff; text-decoration: none;
+          border-radius: 12px; padding: 14px 20px; font-size: 14px; font-weight: 700;
+          transition: background-color 0.2s; }
+.wb-btn:hover { background: #35313e; }
 
 /* wave section: full width */
 .wb-outlet { position: relative; }
