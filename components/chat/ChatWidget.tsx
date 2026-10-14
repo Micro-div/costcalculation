@@ -97,9 +97,6 @@ export function ChatWidget({
     startY: 0,
   });
 
-  const isDismissableScreen = typeof window !== "undefined" &&
-    window.matchMedia("(max-width: 1024px)").matches;
-
   const [showDropZone, setShowDropZone] = useState(false);
   const [chatHidden, setChatHidden] = useState(false);
   const [overCross, setOverCross] = useState(false);
@@ -262,10 +259,8 @@ export function ChatWidget({
       startX: e.clientX,
       startY: e.clientY,
     };
-    if (isDismissableScreen) {
-      setShowDropZone(true);
-      setOverCross(false);
-    }
+    setShowDropZone(true);
+    setOverCross(false);
     btn.setPointerCapture(e.pointerId);
   };
 
@@ -284,7 +279,7 @@ export function ChatWidget({
     );
     setFabPos({ left, top });
 
-    if (isDismissableScreen && crossRef.current) {
+    if (crossRef.current) {
       const crossRect = crossRef.current.getBoundingClientRect();
       const fabCenterX = left + FAB_SIZE / 2;
       const fabCenterY = top + FAB_SIZE / 2;
@@ -310,14 +305,12 @@ export function ChatWidget({
       Math.abs(e.clientX - drag.startX) + Math.abs(e.clientY - drag.startY) >
       DRAG_CLICK_THRESHOLD;
 
-    if (isDismissableScreen) {
-      setShowDropZone(false);
-      if (overCross) {
-        setChatHidden(true);
-        setFabPos(null);
-      }
-      setOverCross(false);
+    setShowDropZone(false);
+    if (overCross) {
+      setChatHidden(true);
+      setFabPos(null);
     }
+    setOverCross(false);
 
     if (!moved) {
       setOpen(true);
@@ -360,7 +353,7 @@ export function ChatWidget({
       )}
 
       {/* Mobile/tablet/laptop dismiss cross - appears while dragging chatbot */}
-      {showDropZone && isDismissableScreen && (
+      {showDropZone && (
         <div
           ref={crossRef}
           className="fixed bottom-8 left-1/2 z-[95] -translate-x-1/2 grid h-14 w-14 touch-none select-none place-items-center rounded-full bg-black/80 text-white shadow-[0_10px_40px_rgba(0,0,0,0.4)] transition-all duration-150 ease-out"
