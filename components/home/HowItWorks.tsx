@@ -70,7 +70,7 @@ const watchText = {
   text: "Get instant, localized project cost estimates with clear scope and professional quotations. From web apps to AI solutions, know the investment before you commit.",
   button: "Get Estimate",
   buttonHref: "#estimator",
-  strip: "",
+  strip: "Know your project cost before you build.",
 };
 
 const watchCss = `
@@ -203,7 +203,11 @@ function WatchBanner() {
         </div>
 
         <div className="wb-body">
-          <div className="wb-strip">{watchText.strip}</div>
+          <div className="wb-strip">
+            <Reveal>
+              <span>{watchText.strip}</span>
+            </Reveal>
+          </div>
         </div>
 
         <div className="wb-wave bottom">
