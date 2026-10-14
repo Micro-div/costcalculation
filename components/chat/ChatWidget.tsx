@@ -97,6 +97,14 @@ export function ChatWidget({
     startY: 0,
   });
 
+  const isDismissableScreen = typeof window !== "undefined" &&
+    window.matchMedia("(max-width: 1024px)").matches;
+
+  const [showDropZone, setShowDropZone] = useState(false);
+  const [chatHidden, setChatHidden] = useState(false);
+  const [overCross, setOverCross] = useState(false);
+  const crossRef = useRef<HTMLDivElement>(null);
+
   const cities = useMemo(
     () => locations.filter((loc) => loc.countryId === countryId),
     [locations, countryId],
@@ -254,6 +262,10 @@ export function ChatWidget({
       startX: e.clientX,
       startY: e.clientY,
     };
+    if (isDismissableScreen) {
+      setShowDropZone(true);
+      setOverCross(false);
+    }
     btn.setPointerCapture(e.pointerId);
   };
 
@@ -271,6 +283,18 @@ export function ChatWidget({
       window.innerHeight - FAB_SIZE - 8,
     );
     setFabPos({ left, top });
+
+    if (isDismissableScreen && crossRef.current) {
+      const crossRect = crossRef.current.getBoundingClientRect();
+      const fabCenterX = left + FAB_SIZE / 2;
+      const fabCenterY = top + FAB_SIZE / 2;
+      const isOver =
+        fabCenterX > crossRect.left &&
+        fabCenterX < crossRect.right &&
+        fabCenterY > crossRect.top &&
+        fabCenterY < crossRect.bottom;
+      setOverCross(isOver);
+    }
   };
 
   const onFabPointerUp = (e: ReactPointerEvent<HTMLButtonElement>) => {
@@ -285,7 +309,20 @@ export function ChatWidget({
     const moved =
       Math.abs(e.clientX - drag.startX) + Math.abs(e.clientY - drag.startY) >
       DRAG_CLICK_THRESHOLD;
-    if (!moved) setOpen(true);
+
+    if (isDismissableScreen) {
+      setShowDropZone(false);
+      if (overCross) {
+        setChatHidden(true);
+        setFabPos(null);
+      }
+      setOverCross(false);
+    }
+
+    if (!moved) {
+      setOpen(true);
+      setChatHidden(false);
+    }
   };
 
   const onlyGreeting = messages.length <= 1 && !thinking;
@@ -293,7 +330,7 @@ export function ChatWidget({
   return (
     <>
       {/* Floating launcher — draggable. Hidden while the panel is open. */}
-      {!open && (
+      {!open && !chatHidden && (
         <button
           type="button"
           aria-label="Open the CostCalc assistant"
@@ -303,20 +340,45 @@ export function ChatWidget({
           onClick={(e) => {
             // Keyboard activation fires a click with detail 0; pointer clicks
             // are handled in onPointerUp (so a drag never opens the panel).
-            if (e.detail === 0) setOpen(true);
+            if (e.detail === 0) {
+              setOpen(true);
+              setChatHidden(false);
+            }
           }}
           style={
             fabPos
               ? { left: fabPos.left, top: fabPos.top, right: "auto", bottom: "auto" }
               : undefined
           }
-          className="group fixed bottom-6 right-6 z-[80] grid h-[58px] w-[58px] touch-none select-none place-items-center rounded-full bg-gradient-to-br from-[#6754e7] to-[#8b5cf6] text-white shadow-[0_12px_34px_rgba(103,84,231,0.45)] transition-transform duration-300 hover:scale-[1.06] active:scale-95"
+          className={`group fixed bottom-6 right-6 z-[80] grid h-[58px] w-[58px] touch-none select-none place-items-center rounded-full bg-gradient-to-br from-[#6754e7] to-[#8b5cf6] text-white shadow-[0_12px_34px_rgba(103,84,231,0.45)] transition-transform duration-300 hover:scale-[1.06] active:scale-95 ${chatHidden ? "hidden" : ""}`}
         >
           <Icon name="bot" className="relative h-6 w-6" />
           <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5">
             <span className="relative inline-flex h-3.5 w-3.5 rounded-full border-2 border-white bg-[#22c55e]" />
           </span>
         </button>
+      )}
+
+      {/* Mobile/tablet/laptop dismiss cross - appears while dragging chatbot */}
+      {showDropZone && isDismissableScreen && (
+        <div
+          ref={crossRef}
+          className="fixed bottom-8 left-1/2 z-[95] -translate-x-1/2 grid h-14 w-14 touch-none select-none place-items-center rounded-full bg-black/80 text-white shadow-[0_10px_40px_rgba(0,0,0,0.4)] transition-all duration-150 ease-out"
+          style={{
+            transform: `translateX(-50%) scale(${overCross ? 1.15 : 1})`,
+            opacity: overCross ? 1 : 0.9,
+          }}
+        >
+          <Icon
+            name="close"
+            className={`h-5 w-5 transition-transform duration-150 ${overCross ? "scale-110" : ""}`}
+          />
+          {overCross && (
+            <span className="absolute -top-6 whitespace-nowrap rounded-full bg-black/90 px-2 py-0.5 text-[10px] font-medium text-white shadow-lg">
+              Drop to hide
+            </span>
+          )}
+        </div>
       )}
 
       {/* Chat panel */}
