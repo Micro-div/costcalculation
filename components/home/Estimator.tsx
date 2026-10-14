@@ -289,7 +289,7 @@ export function Estimator({
                 </span>
               </div>
 
-              <aside className="rounded-2xl border border-[#e8e5ed] bg-white p-3">
+              <aside className="flex flex-col rounded-2xl border border-[#e8e5ed] bg-white p-3">
                 <div className="flex items-center justify-between gap-2">
                   <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.08em] text-[#7a7582]">
                     <Icon name="sparkles" className="h-3.5 w-3.5 text-[#6954df]" />
@@ -305,20 +305,20 @@ export function Estimator({
                     <Icon name="rotate" className="h-3.5 w-3.5" />
                   </button>
                 </div>
-                <div className="mt-2 grid gap-1.5 sm:grid-cols-2">
+                <div className="mt-2 flex w-full flex-1 flex-col gap-1.5 overflow-y-auto min-h-0">
                   {visibleExamples.map((example) => (
                     <button
                       key={example.label}
                       type="button"
                       onClick={() => onDescriptionChange(example.description)}
                       title={example.description}
-                      className={`group flex items-center justify-between gap-1.5 rounded-xl border px-2 py-1.5 text-left text-[11px] font-semibold leading-4 transition ${
+                      className={`group flex w-full items-center gap-2 whitespace-normal rounded-xl border px-2 py-1 text-left text-[11px] font-semibold leading-4 transition ${
                         description === example.description
                           ? "border-[#7460e4] bg-[#f4f1ff] text-[#5b4abe]"
                           : "border-[#e9e6ee] bg-[#fcfbfd] text-[#5f5b66] hover:border-[#c9c3e8] hover:bg-[#f8f7fc] hover:text-[#5b4abe]"
                       }`}
                     >
-                      <span className="min-w-0 truncate">{example.label}</span>
+                      <span className="flex-1">{example.label}</span>
                       <Icon
                         name="arrow-right"
                         className="h-3 w-3 shrink-0 text-[#b3aeba] transition group-hover:translate-x-0.5 group-hover:text-[#6a55d7]"
