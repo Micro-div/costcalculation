@@ -331,6 +331,362 @@ input[type="number"] {
   }
 }
 
+/* Fade-out wrapper around the loader (opacity transition before unmount). */
+.loader-fade-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  transition: opacity 600ms ease;
+}
+
+@media (pointer: coarse) {
+  .loader-fade-wrapper {
+    transition-duration: 400ms;
+  }
+}
+
+.loader-fade-wrapper--fading {
+  opacity: 0;
+}
+
+/* Animated book loader (all devices). From Uiverse.io by Nawsome. */
+.book-loader {
+  --background: linear-gradient(135deg, #23c4f8, #275efe);
+  --shadow: rgba(39, 94, 254, 0.28);
+  --text: #6c7486;
+  --page: rgba(255, 255, 255, 0.36);
+  --page-fold: rgba(255, 255, 255, 0.52);
+  --duration: 1.5s;
+  width: 200px;
+  height: 140px;
+  position: relative;
+}
+
+/* Laptop / desktop: same loader, a little bigger (tablets stay mobile-size). */
+@media (min-width: 1024px) and (pointer: fine) {
+  .book-loader {
+    transform: scale(1.28);
+  }
+}
+
+.book-loader:before,
+.book-loader:after {
+  --r: -6deg;
+  content: "";
+  position: absolute;
+  bottom: 8px;
+  width: 120px;
+  top: 80%;
+  box-shadow: 0 16px 12px var(--shadow);
+  transform: rotate(var(--r));
+}
+
+.book-loader:before {
+  left: 4px;
+}
+
+.book-loader:after {
+  --r: 6deg;
+  right: 4px;
+}
+
+.book-loader div {
+  width: 100%;
+  height: 100%;
+  border-radius: 13px;
+  position: relative;
+  z-index: 1;
+  perspective: 600px;
+  box-shadow: 0 4px 6px var(--shadow);
+  background-image: var(--background);
+}
+
+.book-loader div ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  position: relative;
+}
+
+.book-loader div ul li {
+  --r: 180deg;
+  --o: 0;
+  --c: var(--page);
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  transform-origin: 100% 50%;
+  color: var(--c);
+  opacity: var(--o);
+  transform: rotateY(var(--r));
+  -webkit-animation: var(--duration) ease infinite;
+  animation: var(--duration) ease infinite;
+}
+
+.book-loader div ul li:nth-child(2) {
+  --c: var(--page-fold);
+  -webkit-animation-name: book-page-2;
+  animation-name: book-page-2;
+}
+
+.book-loader div ul li:nth-child(3) {
+  --c: var(--page-fold);
+  -webkit-animation-name: book-page-3;
+  animation-name: book-page-3;
+}
+
+.book-loader div ul li:nth-child(4) {
+  --c: var(--page-fold);
+  -webkit-animation-name: book-page-4;
+  animation-name: book-page-4;
+}
+
+.book-loader div ul li:nth-child(5) {
+  --c: var(--page-fold);
+  -webkit-animation-name: book-page-5;
+  animation-name: book-page-5;
+}
+
+.book-loader div ul li svg {
+  width: 90px;
+  height: 120px;
+  display: block;
+}
+
+.book-loader div ul li:first-child {
+  --r: 0deg;
+  --o: 1;
+}
+
+.book-loader div ul li:last-child {
+  --o: 1;
+}
+
+.book-loader span {
+  display: block;
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 20px;
+  text-align: center;
+  color: var(--text);
+}
+
+@keyframes book-page-2 {
+  0% {
+    transform: rotateY(180deg);
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  35%, 100% {
+    opacity: 0;
+  }
+
+  50%, 100% {
+    transform: rotateY(0deg);
+  }
+}
+
+@keyframes book-page-3 {
+  15% {
+    transform: rotateY(180deg);
+    opacity: 0;
+  }
+
+  35% {
+    opacity: 1;
+  }
+
+  50%, 100% {
+    opacity: 0;
+  }
+
+  65%, 100% {
+    transform: rotateY(0deg);
+  }
+}
+
+@keyframes book-page-4 {
+  30% {
+    transform: rotateY(180deg);
+    opacity: 0;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  65%, 100% {
+    opacity: 0;
+  }
+
+  80%, 100% {
+    transform: rotateY(0deg);
+  }
+}
+
+@keyframes book-page-5 {
+  45% {
+    transform: rotateY(180deg);
+    opacity: 0;
+  }
+
+  65% {
+    opacity: 1;
+  }
+
+  80%, 100% {
+    opacity: 0;
+  }
+
+  95%, 100% {
+    transform: rotateY(0deg);
+  }
+}
+
+/* Chat panel: smooth open / close animation. */
+@keyframes chat-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes chat-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+}
+
+.chat-panel {
+  animation: chat-panel-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.chat-panel--closing {
+  animation: chat-panel-out 200ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* History modal: page ke beech centered, smooth open/close + backdrop fade. */
+@keyframes history-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes history-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes history-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes history-modal-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+}
+
+.history-backdrop {
+  animation: history-backdrop-in 200ms ease-out;
+}
+
+.history-backdrop--closing {
+  animation: history-backdrop-out 200ms ease-in forwards;
+}
+
+.history-modal {
+  animation: history-modal-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.history-modal--closing {
+  animation: history-modal-out 200ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* Mobile/tablet dismiss cross: drag par pop-in, drop par shrink-out. */
+@keyframes dismiss-cross-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(12px) scale(0.55);
+  }
+  to {
+    opacity: 0.92;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+}
+
+@keyframes dismiss-cross-out {
+  0% {
+    opacity: 0.9;
+    transform: translateX(-50%) scale(1);
+  }
+  40% {
+    opacity: 1;
+    transform: translateX(-50%) scale(1.18);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) scale(0.3);
+  }
+}
+
+.dismiss-cross {
+  animation: dismiss-cross-in 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dismiss-cross--closing {
+  animation: dismiss-cross-out 260ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* Chatbot drop hone par: halka bara ho kar smooth shrink + fade. */
+@keyframes fab-shrink-out {
+  0% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.35);
+  }
+}
+
+.fab-shrink-out {
+  animation: fab-shrink-out 260ms cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
 /* Generating overlay */
 .generating-overlay {
   position: fixed;
