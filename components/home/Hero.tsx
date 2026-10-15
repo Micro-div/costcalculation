@@ -26,7 +26,14 @@ const heroCss = `
 }
 `;
 
-export function Hero(props: EstimatorProps) {
+interface HeroProps extends EstimatorProps {
+  onTitleAnimationEnd?: () => void;
+}
+
+export function Hero({ onTitleAnimationEnd, ...props }: HeroProps) {
+  const lastWordIndex = words.length - 1;
+  const lastCharIndex = words[lastWordIndex].length - 1;
+
   return (
     <section className="hero-surface relative">
       <style>{heroCss}</style>
@@ -52,16 +59,24 @@ export function Hero(props: EstimatorProps) {
                   className="hero-word"
                   style={{ color: wordColor(w) }}
                 >
-                  {word.split("").map((char, c) => (
-                    <span
-                      key={c}
-                      className="hero-letter"
-                      style={{ animationDelay: `${(offsets[w] + c) * 90}ms` }}
-                    
-                    >
-                      {char}
-                    </span>
-                  ))}
+                  {word.split("").map((char, c) => {
+                    const isLast =
+                      w === lastWordIndex && c === lastCharIndex;
+                    return (
+                      <span
+                        key={c}
+                        className="hero-letter"
+                        style={{ animationDelay: `${(offsets[w] + c) * 90}ms` }}
+                        onAnimationEnd={
+                          isLast
+                            ? () => onTitleAnimationEnd?.()
+                            : undefined
+                        }
+                      >
+                        {char}
+                      </span>
+                    );
+                  })}
                 </span>
                 {w < words.length - 1 ? " " : ""}
               </span>
