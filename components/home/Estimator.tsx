@@ -277,7 +277,7 @@ export function Estimator({
               What do you want to build or improve?
             </label>
             <div className="mt-2.5 grid gap-3 xl:grid-cols-[minmax(0,1fr)_240px]">
-              <div className="relative">
+              <div className="relative h-full">
                 <textarea
                   id="project-description"
                   value={description}
@@ -285,7 +285,7 @@ export function Estimator({
                     onDescriptionChange(event.target.value.slice(0, 500))
                   }
                   placeholder="For example: I need an ecommerce website for a clothing brand with payments, customer accounts and around 500 products..."
-                  className="min-h-[128px] w-full resize-none rounded-2xl border border-[#dedbe4] bg-white px-4 py-3 pr-11 text-[14px] leading-6 text-[#33303a] outline-none transition placeholder:text-[#aaa6b0] focus:border-[#7661e8] focus:ring-4 focus:ring-[#7661e8]/10 sm:min-h-[140px] sm:text-[15px]"
+                  className="h-full min-h-[128px] w-full resize-none rounded-2xl border border-[#dedbe4] bg-white px-4 py-3 pr-11 text-[14px] leading-6 text-[#33303a] outline-none transition placeholder:text-[#aaa6b0] focus:border-[#7661e8] focus:ring-4 focus:ring-[#7661e8]/10 sm:min-h-[140px] sm:text-[15px]"
                 />
                 <span className="absolute bottom-3 right-3 text-[10px] font-medium text-[#aaa6b1]">
                   {description.length}/500

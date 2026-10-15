@@ -788,17 +788,13 @@ input[type="number"] {
 }
 
 /* While the loader is showing (`app-loading` on <html>), hold the page's
-   entrance animations. They start when the loader begins to fade, so the
-   hero heading and the revealed sections animate in as the site appears. */
-.app-loading .hero-letter {
+   CSS entrance animations. They start when the loader begins to fade, so the
+   hero heading and the estimator card animate in as the site appears.
+   (Observer-driven animations — Reveal, feature cards, estimator on mobile —
+   are held in JS until the same moment via `appReady`.) */
+.app-loading .hero-letter,
+.app-loading .estimator-card {
   animation-play-state: paused;
-}
-
-.app-loading .reveal,
-.app-loading .reveal.reveal-visible {
-  opacity: 0;
-  transform: translateY(28px);
-  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
