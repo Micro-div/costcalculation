@@ -706,6 +706,9 @@ export default function Home() {
   const activeStep = stage === "describe" ? 0 : stage === "questions" ? 1 : 2;
   const descriptionReady = description.trim().length >= 12;
 
+  // Hero heading ki letter-animation khatam → chatbot FAB ko ek baar bounce.
+  const [titleAnimDone, setTitleAnimDone] = useState(false);
+
   return (
     <>
       <Header
@@ -736,6 +739,7 @@ export default function Home() {
         estimate={estimate}
         needsInfo={needsInfo}
         descriptionReady={descriptionReady}
+        onTitleAnimationEnd={() => setTitleAnimDone(true)}
         selectedCategory={selectedCategory}
         selectedLocation={selectedLocation}
         onDescriptionChange={setDescription}
@@ -838,6 +842,7 @@ export default function Home() {
         countries={countries}
         locations={locations}
         onCreateEstimate={createEstimateFromChat}
+        bounceOnTitleEnd={titleAnimDone}
       />
     </>
   );

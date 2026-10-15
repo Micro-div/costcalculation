@@ -24,6 +24,8 @@ interface ChatWidgetProps {
   countries: Country[];
   locations: Location[];
   onCreateEstimate: (text: string, chosenLocationId?: LocationId) => void | Promise<void>;
+  /** True once the hero heading animation has finished — triggers the FAB's one-off bounce. */
+  bounceOnTitleEnd?: boolean;
 }
 
 interface ChatMessage {
@@ -36,6 +38,8 @@ interface ChatMessage {
 }
 
 const FAB_SIZE = 58;
+// Launcher ka resting size intro bounce ke baad thoda chota ho jata hai.
+const FAB_SIZE_INTRO = 52;
 const DRAG_CLICK_THRESHOLD = 6;
 
 // The minimum gap between sending a message and showing the reply, so the
@@ -60,6 +64,7 @@ export function ChatWidget({
   countries,
   locations,
   onCreateEstimate,
+  bounceOnTitleEnd,
 }: ChatWidgetProps) {
   // `open` is the panel visibility. Minimising closes the panel but KEEPS the
   // conversation (so the floating button resumes exactly where it left off);
@@ -111,6 +116,10 @@ export function ChatWidget({
   const [overCross, setOverCross] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [closing, setClosing] = useState(false);
+  // One-off intro bounce on the launcher, played when the hero heading finishes.
+  const [fabBounced, setFabBounced] = useState(false);
+  // After the intro the launcher settles a touch smaller than its default size.
+  const [fabSmall, setFabSmall] = useState(false);
   const crossRef = useRef<HTMLDivElement>(null);
   const crossTimerRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLElement>(null);
@@ -149,6 +158,23 @@ export function ChatWidget({
   useEffect(() => {
     if (open) inputRef.current?.focus();
   }, [open]);
+
+  // Hero heading ke letter-animation khatam hote hi launcher ko ek baar bounce
+  // karwao (bhi "not too much, not too little"). Bounce khud CSS keyframe karta
+  // hai; yahan sirf trigger latch set ho raha hai.
+  useEffect(() => {
+    if (!bounceOnTitleEnd || fabBounced) return;
+    if (open || chatHidden) return;
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      // Animation skip — seedha chota resting size laga do.
+      setFabSmall(true);
+      return;
+    }
+    setFabBounced(true);
+  }, [bounceOnTitleEnd, fabBounced, open, chatHidden]);
 
   // Picking a city also moves the country to match it.
   const handleLocationChange = (nextLocationId: LocationId) => {
@@ -308,6 +334,10 @@ export function ChatWidget({
   };
 
   // ---- Draggable floating button ------------------------------------------
+  // Intro ke baad launcher thoda chota rehta hai, is liye drag bounds/center
+  // ke liye current size use karo.
+  const fabSize = fabSmall ? FAB_SIZE_INTRO : FAB_SIZE;
+
   const onFabPointerDown = (e: ReactPointerEvent<HTMLButtonElement>) => {
     const btn = e.currentTarget;
     const rect = btn.getBoundingClientRect();
@@ -340,19 +370,19 @@ export function ChatWidget({
     const left = clamp(
       e.clientX - drag.offsetX,
       8,
-      window.innerWidth - FAB_SIZE - 8,
+      window.innerWidth - fabSize - 8,
     );
     const top = clamp(
       e.clientY - drag.offsetY,
       8,
-      window.innerHeight - FAB_SIZE - 8,
+      window.innerHeight - fabSize - 8,
     );
     setFabPos({ left, top });
 
     if (isMobileOrTablet && crossRef.current) {
       const crossRect = crossRef.current.getBoundingClientRect();
-      const fabCenterX = left + FAB_SIZE / 2;
-      const fabCenterY = top + FAB_SIZE / 2;
+      const fabCenterX = left + fabSize / 2;
+      const fabCenterY = top + fabSize / 2;
       const isOver =
         fabCenterX > crossRect.left &&
         fabCenterX < crossRect.right &&
@@ -418,6 +448,13 @@ export function ChatWidget({
               setChatHidden(false);
             }
           }}
+          onAnimationEnd={(e) => {
+            // Intro bounce khatam → animation class hatao aur thoda chota resting
+            // size laga do, taake hover/active/drag transforms normal chalein.
+            if (e.target !== e.currentTarget || !fabBounced) return;
+            setFabBounced(false);
+            setFabSmall(true);
+          }}
           style={{
             ...(fabPos
               ? { left: fabPos.left, top: fabPos.top, right: "auto", bottom: "auto" }
@@ -434,7 +471,7 @@ export function ChatWidget({
             // Drop hone par cross ke upar rakho jab tak shrink-out chal raha ho.
             ...(fabDropping ? { zIndex: 96 } : {}),
           }}
-          className={`group fixed bottom-6 right-6 z-[80] grid h-[58px] w-[58px] touch-none select-none place-items-center rounded-full bg-gradient-to-br from-[#6754e7] to-[#8b5cf6] text-white shadow-[0_12px_34px_rgba(103,84,231,0.45)] transition-transform duration-300 hover:scale-[1.06] active:scale-95 ${fabDropping ? "fab-shrink-out" : ""} ${chatHidden ? "hidden" : ""}`}
+          className={`group fixed bottom-6 right-6 z-[80] grid ${fabSmall ? "h-[52px] w-[52px]" : "h-[58px] w-[58px]"} touch-none select-none place-items-center rounded-full bg-gradient-to-br from-[#6754e7] to-[#8b5cf6] text-white shadow-[0_12px_34px_rgba(103,84,231,0.45)] transition-transform duration-300 hover:scale-[1.06] active:scale-95 ${fabDropping ? "fab-shrink-out" : ""} ${fabBounced && !fabDropping ? "fab-bounce-once" : ""} ${chatHidden ? "hidden" : ""}`}
         >
           <Icon name="bot" className="relative h-6 w-6" />
           <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5">
