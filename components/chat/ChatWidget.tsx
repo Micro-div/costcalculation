@@ -38,8 +38,8 @@ interface ChatMessage {
 }
 
 const FAB_SIZE = 58;
-// Launcher ka resting size intro bounce ke baad thoda chota ho jata hai.
-const FAB_SIZE_INTRO = 52;
+// Intro bounce ke baad launcher ka resting size (3.625em x 11.3px = ~41px).
+const FAB_SIZE_INTRO = 41;
 const DRAG_CLICK_THRESHOLD = 6;
 
 // The minimum gap between sending a message and showing the reply, so the
@@ -118,11 +118,13 @@ export function ChatWidget({
   const [closing, setClosing] = useState(false);
   // One-off intro bounce on the launcher, played when the hero heading finishes.
   const [fabBounced, setFabBounced] = useState(false);
-  // After the intro the launcher settles a touch smaller than its default size.
+  // After the intro the launcher settles at ~41px (area = half of 58px).
   const [fabSmall, setFabSmall] = useState(false);
   const crossRef = useRef<HTMLDivElement>(null);
   const crossTimerRef = useRef<number | null>(null);
   const panelRef = useRef<HTMLElement>(null);
+  // Intro bounce sirf ek baar (per page load) chale — latch.
+  const introPlayedRef = useRef(false);
 
   const cities = useMemo(
     () => locations.filter((loc) => loc.countryId === countryId),
@@ -159,22 +161,31 @@ export function ChatWidget({
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  // Hero heading ke letter-animation khatam hote hi launcher ko ek baar bounce
-  // karwao (bhi "not too much, not too little"). Bounce khud CSS keyframe karta
-  // hai; yahan sirf trigger latch set ho raha hai.
+  // Hero heading ke letter-animation khatam hote hi launcher ko EK BAAR bounce
+  // karwao. `introPlayedRef` is ko poore page-load ke liye lock kar deta hai,
+  // is liye chat open/close karne par ya kisi aur re-render par dobara nahi
+  // hota — sirf reload ke baad hi naya load hota hai.
   useEffect(() => {
-    if (!bounceOnTitleEnd || fabBounced) return;
-    if (open || chatHidden) return;
+    if (introPlayedRef.current) return;
+    if (!bounceOnTitleEnd || open || chatHidden) return;
+    introPlayedRef.current = true;
+
     const reduceMotion =
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduceMotion) {
-      // Animation skip — seedha chota resting size laga do.
+      // Animation skip — seedha chota resting size (~41px) laga do.
       setFabSmall(true);
       return;
     }
     setFabBounced(true);
-  }, [bounceOnTitleEnd, fabBounced, open, chatHidden]);
+    // Safety net: agar animationend na aaye (unmount/reduced perf), to bhi
+    // class hata kar wahi chota size (~41px) laga do.
+    window.setTimeout(() => {
+      setFabBounced(false);
+      setFabSmall(true);
+    }, 1050);
+  }, [bounceOnTitleEnd, open, chatHidden]);
 
   // Picking a city also moves the country to match it.
   const handleLocationChange = (nextLocationId: LocationId) => {
@@ -449,13 +460,19 @@ export function ChatWidget({
             }
           }}
           onAnimationEnd={(e) => {
-            // Intro bounce khatam → animation class hatao aur thoda chota resting
-            // size laga do, taake hover/active/drag transforms normal chalein.
+            // Intro bounce khatam → animation class hatao aur chota resting
+            // size (~41px) laga do, taake hover/active/drag transforms normal
+            // chalein.
             if (e.target !== e.currentTarget || !fabBounced) return;
             setFabBounced(false);
             setFabSmall(true);
           }}
           style={{
+            // Poora button `em` par sized hai: font-size ghatate hi icon, dot
+            // aur poora circle proportionally shrink hota hai. Ye value animation
+            // ke end-state (11.3px) se exactly match karni chahiye — warna size
+            // swap par jump aayega. 3.625em × 11.3px = ~41px.
+            fontSize: fabSmall ? "11.3px" : "16px",
             ...(fabPos
               ? { left: fabPos.left, top: fabPos.top, right: "auto", bottom: "auto" }
               : {}),
@@ -471,11 +488,11 @@ export function ChatWidget({
             // Drop hone par cross ke upar rakho jab tak shrink-out chal raha ho.
             ...(fabDropping ? { zIndex: 96 } : {}),
           }}
-          className={`group fixed bottom-6 right-6 z-[80] grid ${fabSmall ? "h-[52px] w-[52px]" : "h-[58px] w-[58px]"} touch-none select-none place-items-center rounded-full bg-gradient-to-br from-[#6754e7] to-[#8b5cf6] text-white shadow-[0_12px_34px_rgba(103,84,231,0.45)] transition-transform duration-300 hover:scale-[1.06] active:scale-95 ${fabDropping ? "fab-shrink-out" : ""} ${fabBounced && !fabDropping ? "fab-bounce-once" : ""} ${chatHidden ? "hidden" : ""}`}
+          className={`group fixed bottom-6 right-6 z-[80] grid h-[3.625em] w-[3.625em] touch-none select-none place-items-center rounded-full bg-gradient-to-br from-[#6754e7] to-[#8b5cf6] text-white shadow-[0_12px_34px_rgba(103,84,231,0.45)] transition-transform duration-300 hover:scale-[1.06] active:scale-95 ${fabDropping ? "fab-shrink-out" : ""} ${fabBounced && !fabDropping ? "fab-bounce-once" : ""} ${chatHidden ? "hidden" : ""}`}
         >
-          <Icon name="bot" className="relative h-6 w-6" />
-          <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5">
-            <span className="relative inline-flex h-3.5 w-3.5 rounded-full border-2 border-white bg-[#22c55e]" />
+          <Icon name="bot" className="relative h-[1.5em] w-[1.5em]" />
+          <span className="absolute right-[-0.125em] top-[-0.125em] flex h-[0.875em] w-[0.875em]">
+            <span className="relative inline-flex h-[0.875em] w-[0.875em] rounded-full border-[0.125em] border-white bg-[#22c55e]" />
           </span>
         </button>
       )}
