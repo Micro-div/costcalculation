@@ -3,6 +3,7 @@
 import { formatCompactCurrency, formatCurrency, formatDurationRange } from "@/lib";
 import type { EstimateResult as EstimateResultData } from "@/types";
 import { Icon } from "@/components/common/Icon";
+import { GlassyButton } from "@/components/common/GlassyButton";
 
 interface EstimateResultSectionProps {
   estimate: EstimateResultData;
@@ -66,13 +67,9 @@ export function EstimateResultSection({
             )}
           </div>
           <div className="flex flex-wrap gap-2.5 print:hidden">
-            <button
-              type="button"
-              onClick={onNewEstimate}
-              className="inline-flex min-h-[44px] items-center rounded-xl border border-[#ddd9e3] bg-white px-4 py-2.5 text-sm font-bold text-[#4f4a57] transition hover:bg-[#f7f6f8]"
-            >
+            <GlassyButton size="sm" onClick={onNewEstimate}>
               New estimate
-            </button>
+            </GlassyButton>
             <button
               type="button"
               onClick={onSave}
