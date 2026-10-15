@@ -51,7 +51,44 @@ export function Header({
 }: HeaderProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyClosing, setHistoryClosing] = useState(false);
+  const [headerHidden, setHeaderHidden] = useState(false);
+  const [lastScrollY, setLastScrollY] = useState(0);
   const pathname = usePathname();
+
+  // Scroll direction detection for hide/show header
+  useEffect(() => {
+    let ticking = false;
+    const threshold = 10; // pixels to scroll up before showing
+
+    const handleScroll = () => {
+      if (ticking) return;
+      ticking = true;
+      
+      window.requestAnimationFrame(() => {
+        const currentScrollY = window.scrollY;
+        const delta = currentScrollY - lastScrollY;
+
+        // Scrolling down - hide header (after passing initial threshold)
+        if (delta > threshold && currentScrollY > 80) {
+          setHeaderHidden(true);
+        }
+        // Scrolling up - show header immediately
+        else if (delta < -threshold) {
+          setHeaderHidden(false);
+        }
+        // Also show at top of page
+        else if (currentScrollY <= 20) {
+          setHeaderHidden(false);
+        }
+
+        setLastScrollY(currentScrollY);
+        ticking = false;
+      });
+    };
+
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [lastScrollY]);
 
   // History ko page ke bilkul beech (fixed center) modal ki tarah dikhao.
   // Khali history hone par bhi panel khule (empty state dikhay).
@@ -87,7 +124,11 @@ export function Header({
 
   return (
     <>
-      <header className="sticky top-0 z-50 border-b border-[#e9e7ed]/90 bg-white/85 backdrop-blur-xl supports-[backdrop-filter]:bg-white/70">
+      <header
+        className={`sticky top-0 z-50 border-b border-[#e9e7ed]/90 bg-white/85 backdrop-blur-xl supports-[backdrop-filter]:bg-white/70 transition-transform duration-300 ease-out ${
+          headerHidden ? styles.headerHidden : styles.headerVisible
+        }`}
+      >
         <nav
           className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between px-5 sm:px-7"
           aria-label="Main navigation"

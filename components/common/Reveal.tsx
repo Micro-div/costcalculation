@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type ReactNode } from "react";
+import { useAppReady } from "./useAppReady";
 
 export function Reveal({
   children,
@@ -12,10 +13,11 @@ export function Reveal({
   delay?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const ready = useAppReady();
 
   useEffect(() => {
     const el = ref.current;
-    if (!el) return;
+    if (!el || !ready) return;
 
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
       el.classList.add("reveal-visible");
@@ -36,7 +38,7 @@ export function Reveal({
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, []);
+  }, [ready]);
 
   return (
     <div

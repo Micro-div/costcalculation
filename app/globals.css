@@ -253,6 +253,26 @@ input[type="number"] {
   background-size: 24px 24px;
 }
 
+/* Which loader is visible: the 0→100% progress loader on laptop/desktop,
+   the animated book loader everywhere else (mobile / tablet). */
+.loader-mobile-only {
+  display: flex;
+}
+
+.loader-laptop-only {
+  display: none;
+}
+
+@media (min-width: 1024px) and (pointer: fine) {
+  .loader-mobile-only {
+    display: none;
+  }
+
+  .loader-laptop-only {
+    display: flex;
+  }
+}
+
 .loader-stack {
   display: flex;
   flex-direction: column;
@@ -347,6 +367,7 @@ input[type="number"] {
 
 .loader-fade-wrapper--fading {
   opacity: 0;
+  pointer-events: none;
 }
 
 /* Animated book loader (all devices). From Uiverse.io by Nawsome. */
@@ -766,6 +787,20 @@ input[type="number"] {
   transform: translateY(0);
 }
 
+/* While the loader is showing (`app-loading` on <html>), hold the page's
+   entrance animations. They start when the loader begins to fade, so the
+   hero heading and the revealed sections animate in as the site appears. */
+.app-loading .hero-letter {
+  animation-play-state: paused;
+}
+
+.app-loading .reveal,
+.app-loading .reveal.reveal-visible {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .reveal {
     opacity: 1;
@@ -840,3 +875,106 @@ input[type="number"] {
     transition: none;
   }
 }
+
+/* Reduced motion support for category card hover effects */
+@media (prefers-reduced-motion: reduce) {
+  .group:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    transition: none !important;
+  }
+  .group-hover\:scale-\[1\.08\]:hover {
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* ============================================================
+   Image Strip (Project Showcase category cards)
+   ============================================================ */
+.image-strip {
+  overflow-x: visible;
+  padding-bottom: 8px; /* space for scrollbar if needed */
+}
+
+.image-strip-track {
+  display: flex;
+  gap: 1rem; /* 16px gap */
+  will-change: transform;
+  animation: scroll-strip 30s linear infinite;
+}
+
+.image-strip-card {
+  flex: 0 0 280px;
+  aspect-ratio: 16 / 9;
+  border-radius: 20px;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 7px 25px rgba(34, 29, 49, 0.035);
+  position: relative;
+  z-index: 1;
+  transition: z-index 0s; /* instant z-index change on hover */
+}
+
+.image-strip-card:hover {
+  z-index: 10;
+}
+
+.image-strip-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 20px;
+  opacity: 0.8; /* only a slight fade by default */
+  transition: transform 1s ease, box-shadow 0.3s ease, opacity 0.3s ease;
+}
+
+.image-strip-card:hover img {
+  transform: scale(1.12);
+  opacity: 1; /* clear on hover */
+  box-shadow: 0 20px 40px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(105, 84, 223, 0.2);
+  border-radius: 20px;
+}
+
+/* Pause animation on hover of the strip */
+.image-strip:hover .image-strip-track {
+  animation-play-state: paused;
+}
+
+@keyframes scroll-strip {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+/* Reduced motion support for image strip */
+@media (prefers-reduced-motion: reduce) {
+  .image-strip-track {
+    animation: none !important;
+  }
+  .image-strip-card img {
+    transition: none !important;
+  }
+  .image-strip-card:hover img {
+    transform: none !important;
+    box-shadow: none !important;
+  }
+}
+
+/* Responsive card widths */
+@media (min-width: 640px) {
+  .image-strip-card {
+    flex: 0 0 300px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .image-strip-card {
+    flex: 0 0 320px;
+  }
+}
+
+

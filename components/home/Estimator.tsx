@@ -30,6 +30,7 @@ import type {
 } from "@/types";
 import { Icon } from "@/components/common/Icon";
 import { LocationSelect } from "@/components/common/LocationSelect";
+import { useAppReady } from "@/components/common/useAppReady";
 
 export interface EstimatorProps {
   stage: Stage;
@@ -176,6 +177,7 @@ export function Estimator({
 }: EstimatorProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [revealed, setRevealed] = useState(false);
+  const ready = useAppReady();
   // Random example pool: starts deterministic (SSR-safe), shuffles after mount.
   const [exampleOffset, setExampleOffset] = useState(0);
   const visibleExamples = Array.from(
@@ -192,7 +194,7 @@ export function Estimator({
 
   useEffect(() => {
     const node = cardRef.current;
-    if (!node) return;
+    if (!node || !ready) return;
     if (typeof IntersectionObserver === "undefined") {
       setRevealed(true);
       return;
@@ -208,7 +210,7 @@ export function Estimator({
     );
     observer.observe(node);
     return () => observer.disconnect();
-  }, []);
+  }, [ready]);
 
   // Shuffle the example suggestions once on mount (client-only, so the
   // server-rendered HTML matches the first render and hydration stays clean).

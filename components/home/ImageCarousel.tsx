@@ -43,6 +43,9 @@ const carouselImages: CarouselImage[] = [
   },
 ];
 
+// Duplicate images for seamless infinite scroll
+const stripImages = [...carouselImages, ...carouselImages];
+
 export function ImageCarousel() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isAnimating, setIsAnimating] = useState(false);
@@ -120,13 +123,13 @@ export function ImageCarousel() {
                 {carouselImages.map((image) => (
                   <div
                     key={image.id}
-                    className="relative w-full flex-shrink-0 min-h-[380px] sm:min-h-[480px]"
+                    className="group relative w-full flex-shrink-0 min-h-[380px] sm:min-h-[480px]"
                   >
                     <div className="absolute inset-0 z-0">
                       <img
                         src={image.src}
                         alt={image.alt}
-                        className="w-full h-full object-cover opacity-40"
+                        className="w-full h-full object-cover opacity-80 transition duration-1000 ease-out group-hover:opacity-100 group-hover:scale-110"
                         loading="lazy"
                       />
                       {/* Gradient overlay for text readability */}
@@ -197,33 +200,24 @@ export function ImageCarousel() {
           </div>
         </Reveal>
 
-        {/* Category Cards Grid */}
+        {/* Image Strip - Horizontal scrolling with auto-scroll */}
         <Reveal delay={480} className="mt-16">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {carouselImages.map((image, i) => (
-              <Reveal key={image.id} delay={i * 100}>
-                <div className="group rounded-[20px] border border-[#e7e4eb] bg-white p-5 text-left shadow-[0_7px_25px_rgba(34,29,49,0.035)] transition-all duration-300 hover:-translate-y-1 hover:border-[#cec7ec] hover:shadow-[0_16px_36px_rgba(46,38,77,0.09)]">
-                  <div className="aspect-video rounded-[16px] overflow-hidden bg-[#f0edff] relative">
-                    <img
-                      src={image.src}
-                      alt={image.alt}
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105 opacity-80"
-                      loading="lazy"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                    <div className="absolute bottom-3 left-3 right-3 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <span className="text-xs font-medium">Explore {image.title}</span>
-                    </div>
-                  </div>
-                  <h3 className="mt-4 text-base font-bold tracking-[-0.025em] text-[#302c37]">
-                    {image.title}
-                  </h3>
-                  <p className="mt-2 min-h-10 text-xs leading-5 text-[#807b87]">
-                    {image.description}
-                  </p>
+          <div className="image-strip">
+            <div className="image-strip-track">
+              {stripImages.map((image, i) => (
+                <div
+                  key={`${image.id}-${i}`}
+                  className="image-strip-card"
+                >
+                  <img
+                    src={image.src}
+                    alt={image.alt}
+                    className=""
+                    loading="lazy"
+                  />
                 </div>
-              </Reveal>
-            ))}
+              ))}
+            </div>
           </div>
         </Reveal>
       </div>

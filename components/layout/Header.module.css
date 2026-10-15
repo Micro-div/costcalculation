@@ -74,3 +74,12 @@
     transition-duration: 0.01ms;
   }
 }
+
+/* Header hide/show animation */
+.headerVisible {
+  transform: translateY(0);
+}
+
+.headerHidden {
+  transform: translateY(-100%);
+}

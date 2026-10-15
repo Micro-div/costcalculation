@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Reveal } from "@/components/common/Reveal";
+import { useAppReady } from "@/components/common/useAppReady";
 import { Icon } from "@/components/common/Icon";
 
 interface AnimationFeature {
@@ -132,8 +133,11 @@ export function AnimationSection() {
   const [visibleFeatures, setVisibleFeatures] = useState<Set<number>>(new Set());
   const observerRef = useRef<IntersectionObserver | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const ready = useAppReady();
 
   useEffect(() => {
+    if (!ready) return;
+
     observerRef.current = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -153,7 +157,7 @@ export function AnimationSection() {
     }
 
     return () => observerRef.current?.disconnect();
-  }, []);
+  }, [ready]);
 
   const getAnimationClass = (type: AnimationFeature["animationType"]) => {
     switch (type) {
