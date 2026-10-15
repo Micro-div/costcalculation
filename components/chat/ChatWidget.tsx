@@ -9,6 +9,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { Icon } from "@/components/common/Icon";
+import { LocationSelect } from "@/components/common/LocationSelect";
 import {
   buildEstimateReadyMessage,
   buildLocalGreeting,
@@ -149,11 +150,11 @@ export function ChatWidget({
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  // When the country changes, jump the city to that country's first city.
-  const handleCountryChange = (nextCountryId: string) => {
-    setCountryId(nextCountryId);
-    const first = locations.find((loc) => loc.countryId === nextCountryId);
-    if (first) setLocationId(first.id);
+  // Picking a city also moves the country to match it.
+  const handleLocationChange = (nextLocationId: LocationId) => {
+    setLocationId(nextLocationId);
+    const loc = locations.find((item) => item.id === nextLocationId);
+    if (loc) setCountryId(loc.countryId);
   };
 
   const resetChat = () => {
@@ -189,6 +190,11 @@ export function ChatWidget({
     const handlePointerDown = (e: PointerEvent) => {
       const target = e.target as Node;
       if (panelRef.current && !panelRef.current.contains(target)) {
+        // Ignore taps inside the portal LocationSelect dropdown (it lives
+        // outside the chat panel in the DOM), so choosing a city never
+        // closes the chat.
+        const element = e.target as Element | null;
+        if (element?.closest?.("[data-location-select-panel]")) return;
         minimizeChat();
       }
     };
@@ -527,32 +533,16 @@ export function ChatWidget({
           </header>
 
           {/* Location picker */}
-          <div className="flex items-center gap-2 border-b border-[#f0eef3] bg-[#faf9fc] px-4 py-2.5">
-            <Icon name="globe" className="h-4 w-4 shrink-0 text-[#8b86a0]" />
-            <select
-              aria-label="Country"
-              value={countryId}
-              onChange={(e) => handleCountryChange(e.target.value)}
-              className="min-w-0 flex-1 rounded-lg border border-[#e8e5ed] bg-white px-2 py-1.5 text-xs font-medium text-[#3a3641] outline-none focus:border-[#6754e7]"
-            >
-              {countries.map((country) => (
-                <option key={country.id} value={country.id}>
-                  {country.country}
-                </option>
-              ))}
-            </select>
-            <select
-              aria-label="City"
-              value={selectedLocation?.id ?? ""}
-              onChange={(e) => setLocationId(e.target.value)}
-              className="min-w-0 flex-1 rounded-lg border border-[#e8e5ed] bg-white px-2 py-1.5 text-xs font-medium text-[#3a3641] outline-none focus:border-[#6754e7]"
-            >
-              {cities.map((city) => (
-                <option key={city.id} value={city.id}>
-                  {city.city}
-                </option>
-              ))}
-            </select>
+          <div className="border-b border-[#f0eef3] bg-[#faf9fc] px-4 py-2.5">
+            <LocationSelect
+              countries={countries}
+              locations={locations}
+              value={selectedLocation?.id ?? locationId}
+              onChange={handleLocationChange}
+              size="chat"
+              ariaLabel="Chat location"
+              className="min-w-0 flex-1"
+            />
           </div>
 
           {/* Messages */}

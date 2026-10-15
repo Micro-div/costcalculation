@@ -4,7 +4,10 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/common/Icon";
+import { GlassyButton } from "@/components/common/GlassyButton";
 import { Brand } from "./Brand";
+import { MenuToggle } from "./MenuToggle";
+import styles from "./Header.module.css";
 import type { EstimateItem, EstimateResult } from "@/types";
 
 interface HistoryEntry {
@@ -103,22 +106,22 @@ export function Header({
           >
             <Brand />
           </Link>
-          <div className="hidden items-center gap-8 md:flex">
+          <div className={`hidden md:flex ${styles.navPill}`}>
             <a
               href="#services"
-              className="inline-flex min-h-[44px] items-center whitespace-nowrap text-sm font-medium text-[#65616d] transition hover:text-[#d67d07]"
+              className={`${styles.navLink} whitespace-nowrap text-sm font-medium`}
             >
               Services
             </a>
             <a
               href="#how-it-works"
-              className="inline-flex min-h-[44px] items-center whitespace-nowrap text-sm font-medium text-[#65616d] transition hover:text-[#d67d07]"
+              className={`${styles.navLink} whitespace-nowrap text-sm font-medium`}
             >
               How it works
             </a>
             <a
               href="#why-costcalc"
-              className="inline-flex min-h-[44px] items-center whitespace-nowrap text-sm font-medium text-[#65616d] transition hover:text-[#d67d07]"
+              className={`${styles.navLink} whitespace-nowrap text-sm font-medium`}
             >
               Why CostCalc
             </a>
@@ -128,7 +131,7 @@ export function Header({
                 onClick={() =>
                   historyOpen ? closeHistory() : setHistoryOpen(true)
                 }
-                className="flex min-h-[44px] items-center gap-1.5 whitespace-nowrap text-sm font-medium text-[#65616d] transition hover:text-[#d67d07]"
+                className={`${styles.navLink} whitespace-nowrap text-sm font-medium`}
                 aria-expanded={historyOpen}
                 aria-label="Saved estimates and drafts"
               >
@@ -143,23 +146,25 @@ export function Header({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
+            <GlassyButton
+              size="sm"
+              iconOnly
               onClick={onEstimateClick}
               aria-label="New estimate"
-              className="group flex min-h-[44px] items-center gap-2 rounded-full bg-[#EEEDF3] px-4 py-2 text-sm font-semibold text-[#2b2732] transition hover:bg-[#e3e1ea]"
             >
-              <Icon name="plus" className="h-4 w-4" />
-              <span className="hidden whitespace-nowrap md:inline">New estimate</span>
-            </button>
+              <Icon name="plus" className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
+              <span className="hidden whitespace-nowrap md:inline">
+                New estimate
+              </span>
+            </GlassyButton>
             <button
               type="button"
               onClick={onToggleMobileMenu}
-              className="grid h-11 w-11 place-items-center rounded-xl border border-[#e5e2e9] text-[#393541] md:hidden"
+              className="grid h-10 w-10 place-items-center rounded-xl border border-[#e5e2e9] text-[#393541] sm:h-11 sm:w-11 md:hidden"
               aria-expanded={mobileMenuOpen}
               aria-label="Toggle navigation"
             >
-              <Icon name={mobileMenuOpen ? "close" : "menu"} />
+              <MenuToggle open={mobileMenuOpen} />
             </button>
           </div>
         </nav>
@@ -175,7 +180,7 @@ export function Header({
                   key={id}
                   href={`#${id}`}
                   onClick={onCloseMobileMenu}
-                  className="rounded-xl px-3 py-3 text-sm font-semibold text-[#4c4854] transition hover:bg-[#f6f5f8] hover:text-[#d67d07]"
+                  className="rounded-xl px-3 py-3 text-sm font-semibold text-[#4c4854] transition hover:bg-[#f3f1fb] hover:text-[#6754e7]"
                 >
                   {label}
                 </a>
@@ -186,7 +191,7 @@ export function Header({
                   onCloseMobileMenu();
                   setHistoryOpen(true);
                 }}
-                className="flex items-center gap-2 rounded-xl px-3 py-3 text-left text-sm font-semibold text-[#4c4854] hover:bg-[#f6f5f8]"
+                className="flex items-center gap-2 rounded-xl px-3 py-3 text-left text-sm font-semibold text-[#4c4854] transition hover:bg-[#f3f1fb] hover:text-[#6754e7]"
               >
                 <Icon name="clock" className="h-4 w-4" />
                 History

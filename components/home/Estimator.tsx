@@ -29,6 +29,7 @@ import type {
   Stage,
 } from "@/types";
 import { Icon } from "@/components/common/Icon";
+import { LocationSelect } from "@/components/common/LocationSelect";
 
 export interface EstimatorProps {
   stage: Stage;
@@ -457,38 +458,16 @@ export function Estimator({
               </div>
  */}
               </div>
-              <label className="block">
-                <span className="sr-only">Project location</span>
-                <span className="relative block">
-                  <Icon
-                    name="globe"
-                    className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#6d58db]"
-                  />
-                  <select
-                    value={locationId}
-                    onChange={(event) =>
-                      onLocationChange(event.target.value as LocationId)
-                    }
-                    className="h-11 w-full appearance-none rounded-xl border border-[#dedbe4] bg-white pl-10 pr-9 text-sm font-semibold text-[#403c47] outline-none transition focus:border-[#7661e8] focus:ring-4 focus:ring-[#7661e8]/10"
-                  >
-                    {countries.map((country) => (
-                      <optgroup key={country.id} label={country.country}>
-                        {locations
-                          .filter((loc) => loc.countryId === country.id)
-                          .map((loc) => (
-                            <option key={loc.id} value={loc.id}>
-                              {loc.city}
-                            </option>
-                          ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                  <Icon
-                    name="chevron-down"
-                    className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#77727f]"
-                  />
-                </span>
-              </label>
+              <div>
+                <LocationSelect
+                  countries={countries}
+                  locations={locations}
+                  value={locationId}
+                  onChange={onLocationChange}
+                  size="form"
+                  ariaLabel="Project location"
+                />
+              </div>
             </div>
 
             <div className="mt-3 flex flex-col gap-2.5 sm:flex-row">

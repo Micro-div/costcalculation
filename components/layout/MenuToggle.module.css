@@ -1,0 +1,70 @@
+/*
+ * MenuToggle — hamburger that folds into the close (X) shape.
+ * Ported from the reference transition: bar1 and bar2 swing down to meet bar3
+ * while the whole control rotates -90deg; the next tap plays it in reverse.
+ * Every distance is expressed through --mt-scale so the shape keeps the exact
+ * reference proportions while fitting the 44x44 navbar button.
+ */
+
+.toggle {
+  /* Phones get the smallest control; tablets a touch larger. */
+  --mt-scale: 0.55;
+  --mt-bar: calc(4px * var(--mt-scale)); /* bar thickness */
+  --mt-gap: calc(10px * var(--mt-scale)); /* gap between bars */
+  --mt-step: calc(var(--mt-bar) + var(--mt-gap)); /* centre-to-centre distance */
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--mt-gap);
+  width: calc(40px * var(--mt-scale));
+  height: calc(40px * var(--mt-scale));
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+@media (min-width: 640px) {
+  .toggle {
+    --mt-scale: 0.6;
+  }
+}
+
+.bar {
+  width: 100%;
+  height: var(--mt-bar);
+  border-radius: 5px;
+  background-color: currentColor;
+  transition: transform 300ms cubic-bezier(0.4, 0, 0.2, 1);
+  will-change: transform;
+}
+
+/* Declared explicitly so the CSS module always exports `bar1/bar2/bar3`.
+   (bar3 has no motion of its own — the other two bars fold down onto it.) */
+.bar1,
+.bar2,
+.bar3 {
+  transform-origin: center;
+}
+
+.open {
+  transform: rotate(-90deg);
+}
+
+.open .bar1 {
+  transform: translateY(calc(var(--mt-step) * 2)) rotate(-60deg);
+  transform-origin: left;
+}
+
+.open .bar2 {
+  transform: translateY(var(--mt-step)) rotate(60deg);
+  transform-origin: right;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .toggle,
+  .bar {
+    transition-duration: 0.01ms;
+  }
+}

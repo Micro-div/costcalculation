@@ -1,0 +1,288 @@
+/*
+ * GlassyButton — reusable glassmorphism button with a premium lavender glow.
+ * Everything (surface, rims, glow, pointer highlight) is drawn in CSS; no
+ * images or external assets are used. Sized with CSS variables so the same
+ * look scales from small inline controls up to the large reference size.
+ */
+
+.btn {
+  /* ---- Sizing tokens (each size class below overrides these) ---- */
+  --gb-font: 0.875rem;
+  --gb-weight: 500;
+  --gb-min-h: 2.75rem;
+  --gb-pad-x: 1.05rem;
+  --gb-pad-y: 0.5rem;
+  --gb-radius: 999px;
+  --gb-gap: 0.5em;
+  --gb-pointer: 8rem;
+  /* Resting gray shadow (offset / blur / spread). */
+  --gb-sy: 10px;
+  --gb-sb: 24px;
+  --gb-ss: -14px;
+  /* Lavender glow on hover / focus. */
+  --gb-gy: 16px;
+  --gb-gb: 34px;
+  --gb-gs: -12px;
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gb-gap);
+  min-height: var(--gb-min-h);
+  margin: 0;
+  padding: var(--gb-pad-y) var(--gb-pad-x);
+  border: 0;
+  border-radius: var(--gb-radius);
+  font-family: Inter, "Helvetica Neue", Arial, Helvetica, sans-serif;
+  font-size: var(--gb-font);
+  font-weight: var(--gb-weight);
+  line-height: 1.15;
+  letter-spacing: -0.012em;
+  text-align: center;
+  text-decoration: none;
+  color: #101014;
+  cursor: pointer;
+  overflow: hidden;
+  isolation: isolate;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+  will-change: transform;
+  box-shadow:
+    0 var(--gb-sy) var(--gb-sb) var(--gb-ss) rgba(58, 54, 82, 0.3),
+    0 calc(var(--gb-sy) * 0.5) calc(var(--gb-sb) * 0.5) var(--gb-ss)
+      rgba(58, 54, 82, 0.2);
+  transition:
+    transform 120ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 420ms cubic-bezier(0.22, 0.76, 0.24, 1);
+}
+
+/* ---- Glass surface: two stacked layers that cross-fade (no gradient snap) ---- */
+.layerBase,
+.layerHover {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  will-change: opacity;
+  transition: opacity 420ms cubic-bezier(0.22, 0.76, 0.24, 1);
+}
+
+.layerBase {
+  /* Soft translucent light-gray glass with a brighter upper surface. */
+  background: linear-gradient(
+    180deg,
+    rgba(253, 253, 255, 0.97) 0%,
+    rgba(243, 242, 247, 0.95) 42%,
+    rgba(229, 228, 235, 0.93) 100%
+  );
+  opacity: 1;
+}
+
+.layerHover {
+  /* Very soft lavender glass. */
+  background: linear-gradient(
+    180deg,
+    #e8e6f2 0%,
+    #e4e2ef 52%,
+    #dddced 100%
+  );
+  opacity: 0;
+}
+
+/* ---- Rims & internal highlights (top / right / bottom + darker left edge) ---- */
+.rim {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    inset 0 1px 1px rgba(255, 255, 255, 0.95),
+    inset -8px 0 14px -10px rgba(255, 255, 255, 0.75),
+    inset 0 -2px 3px rgba(255, 255, 255, 0.85),
+    inset 7px 0 12px -8px rgba(92, 90, 116, 0.38),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.95);
+  transition: box-shadow 420ms cubic-bezier(0.22, 0.76, 0.24, 1);
+}
+
+/* ---- Pointer-following internal highlight ---- */
+.pointer {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--gb-pointer);
+  height: var(--gb-pointer);
+  margin-left: calc(var(--gb-pointer) / -2);
+  margin-top: calc(var(--gb-pointer) / -2);
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(var(--px, 0px), var(--py, 0px), 0);
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.75) 0%,
+    rgba(255, 255, 255, 0.32) 38%,
+    rgba(255, 255, 255, 0) 70%
+  );
+  transition: opacity 320ms ease;
+  will-change: transform, opacity;
+}
+
+/* ---- Content (kept above every decorative layer and on one line) ---- */
+.content {
+  position: relative;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--gb-gap);
+  white-space: nowrap;
+}
+
+/* ---- Hover / keyboard focus: lavender glass + violet glow + brighter rim ---- */
+.btn:hover .layerHover,
+.btn:focus-visible .layerHover {
+  opacity: 1;
+}
+
+.btn:hover .pointer,
+.btn:focus-visible .pointer {
+  opacity: 0.7;
+}
+
+.btn:hover .rim,
+.btn:focus-visible .rim {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.72),
+    inset 0 1px 1px rgba(255, 255, 255, 1),
+    inset -10px 0 16px -10px rgba(255, 255, 255, 0.85),
+    inset 0 -3px 6px rgba(255, 255, 255, 1),
+    inset 7px 0 14px -8px rgba(120, 104, 200, 0.35),
+    inset 0 -1px 0 rgba(255, 255, 255, 1);
+}
+
+.btn:hover,
+.btn:focus-visible {
+  /* Wide, soft, atmospheric violet glow that spreads beneath the button. */
+  box-shadow:
+    0 var(--gb-gy) var(--gb-gb) var(--gb-gs) rgba(116, 98, 255, 0.64),
+    0 calc(var(--gb-gy) * 0.5) calc(var(--gb-gb) * 0.5) var(--gb-gs)
+      rgba(116, 98, 255, 0.46);
+}
+
+/* Subtle but visible keyboard focus ring (fingerprinted to the lavender glow). */
+.btn:focus-visible {
+  outline: 2px solid rgba(116, 98, 255, 0.55);
+  outline-offset: 3px;
+}
+
+/* ---- Press interaction ---- */
+.btn:active {
+  transform: translateY(2px) scale(0.985);
+  transition-duration: 120ms;
+}
+
+/* ---- Size variants (proportions preserved from the 400 x 154 reference) ---- */
+.sizeSm {
+  --gb-font: 0.875rem;
+  --gb-weight: 500;
+  --gb-min-h: 2.75rem;
+  --gb-pad-x: 1.05rem;
+  --gb-pad-y: 0.5rem;
+  --gb-pointer: 7rem;
+  --gb-sy: 10px;
+  --gb-sb: 24px;
+  --gb-ss: -14px;
+  --gb-gy: 16px;
+  --gb-gb: 34px;
+  --gb-gs: -12px;
+}
+
+.sizeMd {
+  --gb-font: 1rem;
+  --gb-weight: 500;
+  --gb-min-h: 3.25rem;
+  --gb-pad-x: 1.4rem;
+  --gb-pad-y: 0.7rem;
+  --gb-pointer: 9rem;
+  --gb-sy: 14px;
+  --gb-sb: 34px;
+  --gb-ss: -16px;
+  --gb-gy: 22px;
+  --gb-gb: 46px;
+  --gb-gs: -14px;
+}
+
+.sizeLg {
+  --gb-font: 1.75rem;
+  --gb-weight: 400;
+  --gb-min-h: 5.5rem;
+  --gb-pad-x: 2.4rem;
+  --gb-pad-y: 1.2rem;
+  --gb-pointer: 14rem;
+  --gb-sy: 20px;
+  --gb-sb: 48px;
+  --gb-ss: -18px;
+  --gb-gy: 32px;
+  --gb-gb: 68px;
+  --gb-gs: -16px;
+}
+
+/* Reference scale: ~400 x 154 at a 720px viewport, shrinking to ~86vw. */
+.sizeDemo {
+  --gb-font: clamp(1.5rem, 6.66vw, 3rem);
+  --gb-weight: 400;
+  --gb-min-h: 0;
+  --gb-pad-x: 2rem;
+  --gb-pad-y: 0;
+  --gb-pointer: 20rem;
+  --gb-sy: 26px;
+  --gb-sb: 60px;
+  --gb-ss: -20px;
+  --gb-gy: 44px;
+  --gb-gb: 96px;
+  --gb-gs: -20px;
+  width: min(400px, 86vw);
+  max-width: 100%;
+  aspect-ratio: 400 / 154;
+}
+
+/* ---- Nav-style responsive square (see `iconOnly` prop) ------------------- */
+/* Phones: compact square. Tablets: a touch larger. md+: grows into its label. */
+.iconOnly {
+  --gb-pad-x: 0;
+  --gb-pad-y: 0;
+  --gb-min-h: 2.5rem;
+  width: 2.5rem;
+}
+
+@media (min-width: 640px) {
+  .iconOnly {
+    --gb-min-h: 2.75rem;
+    width: 2.75rem;
+  }
+}
+
+@media (min-width: 768px) {
+  .iconOnly {
+    --gb-pad-x: 1.05rem;
+    width: auto;
+  }
+}
+
+/* ---- Reduced motion: keep the states, make every transition near-instant ---- */
+@media (prefers-reduced-motion: reduce) {
+  .btn,
+  .layerBase,
+  .layerHover,
+  .rim,
+  .pointer {
+    transition-duration: 0.01ms !important;
+  }
+}
