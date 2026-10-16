@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/common/Icon";
 import { GlassyButton } from "@/components/common/GlassyButton";
-import { Brand } from "./Brand";
+import { LogoMagnet } from "./LogoMagnet";
 import { MenuToggle } from "./MenuToggle";
 import styles from "./Header.module.css";
 import type { EstimateItem, EstimateResult } from "@/types";
@@ -145,7 +145,7 @@ export function Header({
             }}
             className="brand-link inline-flex items-center leading-none"
           >
-            <Brand />
+            <LogoMagnet />
           </Link>
           <div className={`hidden md:flex ${styles.navPill}`}>
             <a
