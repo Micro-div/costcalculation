@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { GeneratingOverlay } from "@/components/common/GeneratingOverlay";
 import { Toast } from "@/components/common/Toast";
-import { CtaSection } from "@/components/home/CtaSection";
+import CtaBanner from "@/components/CtaBanner";
 import { EstimateResultSection } from "@/components/home/EstimateResult";
 import { Hero } from "@/components/home/Hero";
 import { HowItWorks } from "@/components/home/HowItWorks";
@@ -1009,7 +1009,9 @@ export default function Home() {
 
       <WhyCostCalc onEstimateClick={() => scrollToSection("estimator")} />
 
-      <CtaSection onEstimateClick={() => scrollToSection("estimator")} />
+      <div className="mx-auto mt-10 mb-10 max-w-[1350px] px-5 sm:px-7">
+        <CtaBanner primaryHref="/#estimator" />
+      </div>
 
       <Footer />
 
