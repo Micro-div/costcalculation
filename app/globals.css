@@ -737,9 +737,15 @@ input[type="number"] {
   will-change: transform, font-size;
 }
 
+/* Reduced motion: bounce animation ki tarah size ka transition bhi band —
+   size seedha badal jaye, koi tween na dikhe. */
 @media (prefers-reduced-motion: reduce) {
   .fab-bounce-once {
     animation: none;
+  }
+
+  .fab-launcher {
+    transition: none;
   }
 }
 

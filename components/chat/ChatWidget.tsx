@@ -41,6 +41,11 @@ const FAB_SIZE = 58;
 // Intro bounce ke baad launcher ka resting size (3.625em x 11.3px = ~41px).
 const FAB_SIZE_INTRO = 41;
 const DRAG_CLICK_THRESHOLD = 6;
+// Chat band hote hi launcher dobara poora bada ho jata hai aur itni der baad
+// khud animate hokar chhota ho jata hai.
+const FAB_SHRINK_DELAY_MS = 3000;
+// Safety net: agar animationend na aaye to bhi shrink settle ho jaye.
+const FAB_BOUNCE_DURATION_MS = 1050;
 
 // The minimum gap between sending a message and showing the reply, so the
 // "thinking" state is always visible for a beat (the request runs alongside it).
@@ -125,6 +130,8 @@ export function ChatWidget({
   const panelRef = useRef<HTMLElement>(null);
   // Intro bounce sirf ek baar (per page load) chale — latch.
   const introPlayedRef = useRef(false);
+  // Intro + dobara-shrink dono ka pending timer isi ref se chalta hai.
+  const shrinkTimerRef = useRef<number | null>(null);
 
   const cities = useMemo(
     () => locations.filter((loc) => loc.countryId === countryId),
@@ -161,31 +168,77 @@ export function ChatWidget({
     if (open) inputRef.current?.focus();
   }, [open]);
 
-  // Hero heading ke letter-animation khatam hote hi launcher ko EK BAAR bounce
-  // karwao. `introPlayedRef` is ko poore page-load ke liye lock kar deta hai,
-  // is liye chat open/close karne par ya kisi aur re-render par dobara nahi
-  // hota — sirf reload ke baad hi naya load hota hai.
-  useEffect(() => {
-    if (introPlayedRef.current) return;
-    if (!bounceOnTitleEnd || open || chatHidden) return;
-    introPlayedRef.current = true;
+  // Shrink ek hi jagah se chalta hai (intro + dobara-shrink dono), taake
+  // dono kabhi aapas mein race na karein.
+  const cancelFabShrink = useCallback(() => {
+    if (shrinkTimerRef.current !== null) {
+      window.clearTimeout(shrinkTimerRef.current);
+      shrinkTimerRef.current = null;
+    }
+    // Timer radd hua → launcher wapas poora bada (chat khulti hi bada dikhe).
+    setFabBounced(false);
+    setFabSmall(false);
+  }, []);
 
-    const reduceMotion =
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduceMotion) {
-      // Animation skip — seedha chota resting size (~41px) laga do.
-      setFabSmall(true);
+  const scheduleFabShrink = useCallback(
+    (delayMs: number) => {
+      cancelFabShrink();
+      const reduceMotion = window.matchMedia(
+        "(prefers-reduced-motion: reduce)",
+      ).matches;
+      shrinkTimerRef.current = window.setTimeout(() => {
+        shrinkTimerRef.current = null;
+        if (reduceMotion) {
+          // Animation skip — seedha chota resting size (~41px).
+          setFabSmall(true);
+          return;
+        }
+        setFabBounced(true);
+        // Safety net: animationend na aaye (window hidden/reduced perf) to
+        // bhi class hata kar chota size laga do.
+        shrinkTimerRef.current = window.setTimeout(() => {
+          shrinkTimerRef.current = null;
+          setFabBounced(false);
+          setFabSmall(true);
+        }, FAB_BOUNCE_DURATION_MS);
+      }, delayMs);
+    },
+    [cancelFabShrink],
+  );
+
+  // Unmount par pending timer band.
+  useEffect(() => () => cancelFabShrink(), [cancelFabShrink]);
+
+  // ---- Launcher ka size lifecycle ------------------------------------------
+  // 1) Page load par: hero heading khatam hote hi EK BAAR bounce + shrink.
+  //    `introPlayedRef` is ko poore page-load ke liye lock karta hai, is liye
+  //    sirf reload ke baad hi naya intro chalta hai.
+  // 2) Uske baad jab bhi launcher chat open/close (ya drop) ke baad wapas
+  //    dikhta hai: pehle poora bada (58px), phir FAB_SHRINK_DELAY_MS baad
+  //    apne aap animate hokar chhota (~41px).
+  useEffect(() => {
+    if (open || chatHidden) {
+      // Launcher chhupi hui — pending shrink band aur size reset (bada).
+      cancelFabShrink();
       return;
     }
-    setFabBounced(true);
-    // Safety net: agar animationend na aaye (unmount/reduced perf), to bhi
-    // class hata kar wahi chota size (~41px) laga do.
-    window.setTimeout(() => {
-      setFabBounced(false);
-      setFabSmall(true);
-    }, 1050);
-  }, [bounceOnTitleEnd, open, chatHidden]);
+
+    if (!introPlayedRef.current) {
+      // Intro ka intezaar: heading animation abhi chal rahi ho sakti hai.
+      if (!bounceOnTitleEnd) return;
+      introPlayedRef.current = true;
+      scheduleFabShrink(0);
+      return;
+    }
+
+    scheduleFabShrink(FAB_SHRINK_DELAY_MS);
+  }, [
+    open,
+    chatHidden,
+    bounceOnTitleEnd,
+    cancelFabShrink,
+    scheduleFabShrink,
+  ]);
 
   // Picking a city also moves the country to match it.
   const handleLocationChange = (nextLocationId: LocationId) => {
@@ -488,7 +541,7 @@ export function ChatWidget({
             // Drop hone par cross ke upar rakho jab tak shrink-out chal raha ho.
             ...(fabDropping ? { zIndex: 96 } : {}),
           }}
-          className={`group fixed bottom-6 right-6 z-[80] grid h-[3.625em] w-[3.625em] touch-none select-none place-items-center rounded-full bg-gradient-to-br from-[#6754e7] to-[#8b5cf6] text-white shadow-[0_12px_34px_rgba(103,84,231,0.45)] transition-transform duration-300 hover:scale-[1.06] active:scale-95 ${fabDropping ? "fab-shrink-out" : ""} ${fabBounced && !fabDropping ? "fab-bounce-once" : ""} ${chatHidden ? "hidden" : ""}`}
+          className={`fab-launcher group fixed bottom-6 right-6 z-[80] grid h-[3.625em] w-[3.625em] touch-none select-none place-items-center rounded-full bg-gradient-to-br from-[#6754e7] to-[#8b5cf6] text-white shadow-[0_12px_34px_rgba(103,84,231,0.45)] transition-[font-size,transform] duration-300 hover:scale-[1.06] active:scale-95 ${fabDropping ? "fab-shrink-out" : ""} ${fabBounced && !fabDropping ? "fab-bounce-once" : ""} ${chatHidden ? "hidden" : ""}`}
         >
           <Icon name="bot" className="relative h-[1.5em] w-[1.5em]" />
           <span className="absolute right-[-0.125em] top-[-0.125em] flex h-[0.875em] w-[0.875em]">

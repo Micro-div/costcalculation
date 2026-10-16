@@ -34,6 +34,14 @@ export default function RootLayout({
   return (
     <html lang="en" className="app-loading">
       <body>
+        {/* Har page load par hamesha hero (sab se upar) section se shuru ho —
+            browser purani scroll position restore na kare. Ye HTML parse hote
+            hi chal jata hai, is liye restore hone se pehle hi band ho jata hai. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: "try{history.scrollRestoration='manual'}catch(e){}",
+          }}
+        />
         <LoadingWrapper>{children}</LoadingWrapper>
       </body>
     </html>

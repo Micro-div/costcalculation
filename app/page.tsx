@@ -44,16 +44,77 @@ import type {
   SharedEstimate,
 } from "@/types";
 
+// Draft entries ka data. `identity` sirf naye drafts mein hota hai (purani
+// entries mein nahi), taake draft bhi usi project se match ho sake.
+interface SavedDraftData {
+  items: EstimateItem[];
+  businessName: string;
+  customerName: string;
+  identity?: string;
+}
+
 interface HistoryEntry {
   id: string;
   type: "estimate" | "draft";
   title: string;
   savedAt: string;
-  data: EstimateResult | { items: EstimateItem[]; businessName: string; customerName: string };
+  data: EstimateResult | SavedDraftData;
 }
 
 const HISTORY_KEY = "costcalc-history";
 const CUSTOM_PROJECT_TYPES_KEY = "customProjectTypes";
+
+// ---- Estimate save / dedupe -----------------------------------------------
+// Ek estimate SIRF ek baar save hoti hai: pehli baar nayi entry banti hai,
+// doosri baar "already saved" message aata hai, aur agar estimate mein kuch
+// badal kar dobara save karein to wahi purani entry update hoti hai —
+// duplicate entry kabhi nahi banti.
+
+// Estimate ka pehchaan = project ka description. Items, rates, size, location
+// ya naam badalne par bhi wahi estimate rehti hai; naya description = nayi
+// estimate.
+const estimateIdentity = (est: EstimateResult) =>
+  (est.description ?? "").trim().toLowerCase();
+
+// Content signature — isi se pata chalta hai user ne kuch badla ya nahi.
+const itemsSignature = (items?: EstimateItem[]) =>
+  JSON.stringify(
+    (items ?? []).map((item) => [
+      item.name,
+      item.detail,
+      item.quantity,
+      item.rate,
+    ]),
+  );
+
+// Estimate-type entry ki identity. Purani/corrupt entry ho to "" — khaali key
+// kabhi match nahi hoti, is liye galat dedupe nahi hota.
+const savedEstimateIdentity = (data: HistoryEntry["data"]) =>
+  "projectTitle" in data ? estimateIdentity(data) : "";
+
+// Usi project ki pehle se saved estimate entry (duplicate rokne ke liye).
+const findSavedEstimate = (history: HistoryEntry[], key: string) => {
+  if (!key) return undefined;
+  return history.find(
+    (entry) =>
+      entry.type === "estimate" && savedEstimateIdentity(entry.data) === key,
+  );
+};
+
+// Draft entry usi project ki hai ya nahi — naye drafts identity se match
+// hote hain, purani entries title se.
+const matchesProjectDraft = (
+  entry: HistoryEntry,
+  key: string,
+  title: string,
+) => {
+  if (entry.type !== "draft") return false;
+  const identity =
+    "projectTitle" in entry.data
+      ? estimateIdentity(entry.data)
+      : entry.data.identity;
+  return identity ? identity === key : entry.title === title;
+};
 
 export default function Home() {
   const [description, setDescription] = useState("");
@@ -134,6 +195,18 @@ export default function Home() {
     } catch {
       // ignore corrupted history
     }
+  }, []);
+
+  // Har nayi page load par hamesha hero section (sab se upar) se shuru ho —
+  // pichhli baar jahan chhoda tha wahan se na dobara khule. Layout script ne
+  // scroll-restore pehle hi band kar diya hota; ye us restore ko bhi mita
+  // deta hai jo hydration se pehle ho chuka ho. Shared-link (#estimate=)
+  // wala scroll is ke baad chalta hai, wo asar mein rehta hai.
+  useEffect(() => {
+    if ("scrollRestoration" in window.history) {
+      window.history.scrollRestoration = "manual";
+    }
+    window.scrollTo(0, 0);
   }, []);
 
   useEffect(() => {
@@ -561,8 +634,46 @@ export default function Home() {
     setShareOpen(true);
   };
 
+  // History ko state + localStorage dono mein ek hi jagah se likho.
+  const commitHistory = (entries: HistoryEntry[]) => {
+    const updated = entries.slice(0, 50);
+    setHistory(updated);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+  };
+
+  // Result section ka "Save". Usi project ki estimate pehle se saved ho to:
+  // kuch badla nahi → "already saved", badla hai → wahi entry update ho jaye.
   const saveEstimate = () => {
     if (!estimate) return;
+    const key = estimateIdentity(estimate);
+    const signature = itemsSignature(estimate.items);
+
+    const existing = findSavedEstimate(history, key);
+    if (existing) {
+      const previous = existing.data as EstimateResult;
+      const unchanged =
+        itemsSignature(previous.items) === signature &&
+        previous.projectTitle === estimate.projectTitle;
+      if (unchanged) {
+        notify("This estimate is already saved");
+        return;
+      }
+      commitHistory(
+        history.map((entry) =>
+          entry.id === existing.id
+            ? {
+                ...entry,
+                title: estimate.projectTitle,
+                savedAt: new Date().toISOString(),
+                data: estimate,
+              }
+            : entry,
+        ),
+      );
+      notify("Saved estimate updated");
+      return;
+    }
+
     const entry: HistoryEntry = {
       id: `est-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       type: "estimate",
@@ -570,24 +681,64 @@ export default function Home() {
       savedAt: new Date().toISOString(),
       data: estimate,
     };
-    // Estimate save karne par matching draft hat jaye
-    const updated = [
+    // Estimate save karne par usi project ke matching draft hat jaye.
+    commitHistory([
       entry,
       ...history.filter(
-        (e) => !(e.type === "draft" && e.title === estimate.projectTitle),
+        (e) => !matchesProjectDraft(e, key, estimate.projectTitle),
       ),
-    ].slice(0, 50);
-    setHistory(updated);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+    ]);
     notify("Estimate saved on this device");
   };
 
+  // Quote modal ka save. Usi project ki estimate pehle se saved ho to changes
+  // usi entry mein jaate hain (duplicate nahi banti); warna draft save hota hai.
   const saveDraft = (businessName?: string, customerName?: string) => {
     if (!estimate) return;
 
-    // Agar yeh draft history se load hua tha, toh save karte waqt
-    // estimate ban jaye aur purana draft history se hat jaye
+    const key = estimateIdentity(estimate);
+    const signature = itemsSignature(quoteItems);
+    const nextDraft: SavedDraftData = {
+      items: quoteItems,
+      businessName: businessName ?? "",
+      customerName: customerName ?? "",
+      identity: key,
+    };
+
+    // Agar yeh draft history se load hua tha, toh save karte waqt estimate ban
+    // jaye aur purana draft history se hat jaye.
     if (loadedDraftId) {
+      const existing = findSavedEstimate(history, key);
+      if (existing) {
+        // Usi estimate ki entry pehle se hai: same content → duplicate na
+        // banao; badla hua → usi entry ko update karo.
+        const previous = existing.data as EstimateResult;
+        const unchanged =
+          itemsSignature(previous.items) === signature &&
+          previous.projectTitle === estimate.projectTitle;
+        commitHistory(
+          history
+            .filter((entry) => entry.id !== loadedDraftId)
+            .map((entry) =>
+              entry.id === existing.id && !unchanged
+                ? {
+                    ...entry,
+                    title: estimate.projectTitle,
+                    savedAt: new Date().toISOString(),
+                    data: { ...estimate, items: quoteItems },
+                  }
+                : entry,
+            ),
+        );
+        setLoadedDraftId(null);
+        notify(
+          unchanged
+            ? "This estimate is already saved"
+            : "Saved estimate updated",
+        );
+        return;
+      }
+
       const estimateEntry: HistoryEntry = {
         id: `est-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         type: "estimate",
@@ -598,14 +749,74 @@ export default function Home() {
           items: quoteItems,
         },
       };
-      const updated = [
+      commitHistory([
         estimateEntry,
         ...history.filter((e) => e.id !== loadedDraftId),
-      ].slice(0, 50);
-      setHistory(updated);
-      localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+      ]);
       setLoadedDraftId(null);
       notify("Draft converted to estimate and saved");
+      return;
+    }
+
+    // Estimate pehle se saved → changes usi entry mein update karo.
+    const savedEstimate = findSavedEstimate(history, key);
+    if (savedEstimate) {
+      const previous = savedEstimate.data as EstimateResult;
+      const unchanged =
+        itemsSignature(previous.items) === signature &&
+        previous.projectTitle === estimate.projectTitle;
+      if (unchanged) {
+        notify("This estimate is already saved");
+        return;
+      }
+      commitHistory(
+        history.map((entry) =>
+          entry.id === savedEstimate.id
+            ? {
+                ...entry,
+                title: estimate.projectTitle,
+                savedAt: new Date().toISOString(),
+                data: { ...estimate, items: quoteItems },
+              }
+            : entry,
+        ),
+      );
+      notify("Saved estimate updated");
+      return;
+    }
+
+    // Usi project ka draft pehle se saved → usi entry mein update.
+    const savedDraft = history.find((entry) =>
+      matchesProjectDraft(entry, key, estimate.projectTitle),
+    );
+    if (savedDraft) {
+      const previous = savedDraft.data;
+      const unchanged =
+        itemsSignature(previous.items) === signature &&
+        ("projectTitle" in previous
+          ? true
+          : (previous.businessName ?? "") === nextDraft.businessName &&
+            (previous.customerName ?? "") === nextDraft.customerName);
+      if (unchanged) {
+        notify("This draft is already saved");
+        return;
+      }
+      commitHistory(
+        history.map((entry) =>
+          entry.id === savedDraft.id
+            ? {
+                ...entry,
+                savedAt: new Date().toISOString(),
+                // Purana estimate-shape draft ho to data ka shape na badlo.
+                data:
+                  "projectTitle" in previous
+                    ? { ...estimate, items: quoteItems }
+                    : nextDraft,
+              }
+            : entry,
+        ),
+      );
+      notify("Draft updated");
       return;
     }
 
@@ -614,15 +825,9 @@ export default function Home() {
       type: "draft",
       title: estimate.projectTitle,
       savedAt: new Date().toISOString(),
-      data: {
-        items: quoteItems,
-        businessName: businessName ?? "",
-        customerName: customerName ?? "",
-      },
+      data: nextDraft,
     };
-    const updated = [entry, ...history].slice(0, 50);
-    setHistory(updated);
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(updated));
+    commitHistory([entry, ...history]);
     setLoadedDraftId(null);
     notify("Draft saved on this device");
   };
