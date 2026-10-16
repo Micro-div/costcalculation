@@ -114,9 +114,10 @@ const watchCss = `
             animation: wb-slide linear infinite; will-change: transform; backface-visibility: hidden; }
 .wb-layer.wb-rev { animation-direction: reverse; }
 .wb-layer path { shape-rendering: geometricPrecision; }
-.wb-l1 { animation-duration: 18s; fill: rgba(0,0,0,.18); }
-.wb-l2 { animation-duration: 11s; fill: rgba(0,0,0,.27); }
-.wb-l3 { animation-duration: 14s; fill: #000; }
+/* Speeds matched to the footer waves: 10s / 8s / 6s */
+.wb-l1 { animation-duration: 10s; fill: rgba(0,0,0,.18); }
+.wb-l2 { animation-duration: 8s; fill: rgba(0,0,0,.27); }
+.wb-l3 { animation-duration: 6s; fill: #000; }
 .wb-wave.bottom .wb-l1 { animation-delay: -9s; }
 .wb-wave.bottom .wb-l2 { animation-delay: -4s; }
 
