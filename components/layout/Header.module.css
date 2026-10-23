@@ -1,85 +1,37 @@
 /*
- * Glass "pill" navigation.
+ * Desktop navigation links.
  *
- * Ported from the reference glass-menu component (backdrop blur +
- * saturate/contrast filter, rounded pill surface, inset highlight, and the
- * hover / active feedback) and adapted to this site's light palette.
- *
- * The navbar keeps its existing structure and position — only the desktop
- * nav links get the glass treatment. `display` is intentionally NOT set here;
- * Tailwind's `hidden md:flex` continues to control when the pill is shown.
+ * Plain text only: no glass pill, no hover box, no lift. The pointer state is
+ * just an orange label. `display` is intentionally NOT set here; Tailwind's
+ * `hidden md:flex` continues to control when the links are shown.
  */
 
-.navPill {
+.navLinks {
   position: relative;
   align-items: center;
-  gap: 3px;
-  padding: 5px;
-  border-radius: 999rem;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.94),
-    rgba(228, 224, 248, 0.74)
-  );
-  border: 1px solid rgba(210, 204, 240, 0.95);
-  box-shadow:
-    0 12px 30px rgba(58, 54, 82, 0.13),
-    0 2px 6px rgba(58, 54, 82, 0.08),
-    inset 2px 2px 5px -2px rgba(255, 255, 255, 0.95),
-    inset -2px -2px 5px 2px rgba(255, 255, 255, 0.95),
-    inset 0 -2px 0 rgba(255, 255, 255, 0.6);
-  backdrop-filter: blur(12px) saturate(180%) contrast(200%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%) contrast(200%);
+  gap: 28px;
 }
 
 .navLink {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
-  padding: 8px 13px;
-  border-radius: 999rem;
   /* The link's own (more prominent) colour, with a subtle indigo tilt. */
   color: #413c66;
   font-weight: 500;
   text-decoration: none;
   -webkit-tap-highlight-color: transparent;
-  transition:
-    background-color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    color 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    transform 180ms cubic-bezier(0.22, 1, 0.36, 1),
-    box-shadow 300ms cubic-bezier(0.22, 0.76, 0.24, 1);
+  transition: color 180ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-/* Hover = the same soft violet lift/glow the "New estimate" glass button has,
-   plus a lavender glass tint and a blue/indigo label colour. */
 .navLink:hover {
-  background-color: rgba(232, 230, 242, 0.95);
-  color: #6754e7;
-  transform: translateY(-1px);
-  box-shadow:
-    0 16px 34px -12px rgba(116, 98, 255, 0.64),
-    0 8px 17px -12px rgba(116, 98, 255, 0.46),
-    inset 2px 2px 5px -2px rgba(255, 255, 255, 0.9),
-    inset -2px -1px 5px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -2px 0 rgba(255, 255, 255, 0.55);
+  color: #ea580c;
 }
 
-.navLink:active {
-  transform: translateY(0) scale(0.98);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .navLink {
-    transition-duration: 0.01ms;
-  }
-}
-
-/* Header hide/show animation */
-.headerVisible {
-  transform: translateY(0);
-}
-
-.headerHidden {
-  transform: translateY(-100%);
+/* Keyboard users get the same orange cue plus a visible focus ring. */
+.navLink:focus-visible {
+  color: #ea580c;
+  border-radius: 4px;
+  outline: 2px solid rgba(234, 88, 12, 0.55);
+  outline-offset: 4px;
 }

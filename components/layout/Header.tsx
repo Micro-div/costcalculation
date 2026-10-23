@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/common/Icon";
@@ -42,60 +42,8 @@ export function Header({
 }: HeaderProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyClosing, setHistoryClosing] = useState(false);
-  const [headerHidden, setHeaderHidden] = useState(false);
-  const lastScrollYRef = useRef(0);
   const historyDialogRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
-
-  // Scroll direction detection for hide/show header
-  useEffect(() => {
-    let ticking = false;
-    const threshold = 10; // pixels to scroll up before showing
-
-    const handleScroll = () => {
-      if (ticking) return;
-      ticking = true;
-
-      window.requestAnimationFrame(() => {
-        const currentScrollY = window.scrollY;
-        const delta = currentScrollY - lastScrollYRef.current;
-
-        // While the mobile menu is open, scrolling down closes it and hides
-        // the navbar; scrolling up shows it again. A click must never hide
-        // an open menu, even if a scroll event fires right after the click.
-        if (
-          mobileMenuOpen &&
-          delta > threshold &&
-          currentScrollY > 80
-        ) {
-          onCloseMobileMenu();
-          setHeaderHidden(true);
-          lastScrollYRef.current = currentScrollY;
-          ticking = false;
-          return;
-        }
-
-        // Scrolling down - hide header (after passing initial threshold)
-        if (!mobileMenuOpen && delta > threshold && currentScrollY > 80) {
-          setHeaderHidden(true);
-        }
-        // Scrolling up - show header immediately
-        else if (delta < -threshold) {
-          setHeaderHidden(false);
-        }
-        // Also show at top of page
-        else if (currentScrollY <= 20) {
-          setHeaderHidden(false);
-        }
-
-        lastScrollYRef.current = currentScrollY;
-        ticking = false;
-      });
-    };
-
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [mobileMenuOpen, onCloseMobileMenu]);
 
   // History ko page ke bilkul beech (fixed center) modal ki tarah dikhao.
   // Khali history hone par bhi panel khule (empty state dikhay).
@@ -124,11 +72,7 @@ export function Header({
 
   return (
     <>
-      <header
-        className={`sticky top-0 z-50 border-b border-[#e9e7ed]/90 bg-white/85 backdrop-blur-xl supports-[backdrop-filter]:bg-white/70 transition-transform duration-300 ease-out ${
-          headerHidden ? styles.headerHidden : styles.headerVisible
-        }`}
-      >
+      <header className="sticky top-0 z-50 border-b border-[#e9e7ed]/90 bg-white/85 backdrop-blur-xl supports-[backdrop-filter]:bg-white/70">
         <nav
           className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between px-5 sm:px-7"
           aria-label="Main navigation"
@@ -147,7 +91,7 @@ export function Header({
           >
             <LogoMagnet />
           </Link>
-          <div className={`hidden md:flex ${styles.navPill}`}>
+          <div className={`hidden md:flex ${styles.navLinks}`}>
             <a
               href="#services"
               className={`${styles.navLink} whitespace-nowrap text-sm font-medium`}
@@ -221,7 +165,7 @@ export function Header({
                   key={id}
                   href={`#${id}`}
                   onClick={onCloseMobileMenu}
-                  className="rounded-xl px-3 py-3 text-sm font-semibold text-[#4c4854] transition hover:bg-[#f3f1fb] hover:text-[#6754e7]"
+                  className="rounded-xl px-3 py-3 text-sm font-semibold text-[#4c4854] transition-colors hover:text-[#ea580c]"
                 >
                   {label}
                 </a>
