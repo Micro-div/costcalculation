@@ -4,7 +4,6 @@ import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/common/Icon";
-import { GlassyButton } from "@/components/common/GlassyButton";
 import { useModalA11y } from "@/lib/useModalA11y";
 import { LogoMagnet } from "./LogoMagnet";
 import { MenuToggle } from "./MenuToggle";
@@ -22,9 +21,9 @@ interface HeaderProps {
   onClearHistory: () => void;
 }
 
-// Shared look for the "Estimate my project" button (desktop + mobile menu).
+// Simple "New estimate" button: light grey, dark grey on hover, grey border.
 const estimateBtn =
-  "group flex items-center gap-2 rounded-xl bg-[#313131] px-4 py-2.5 text-sm font-bold text-white transition-all duration-300 hover:-translate-y-0.5 hover:bg-[#5b5b5c] active:scale-[0.98]";
+  "group flex items-center gap-2 rounded-xl border border-[#e5e2e9] bg-[#f8f8fb] px-4 py-2.5 text-sm font-semibold text-[#393541] transition-colors hover:bg-[#eae8ed] hover:text-[#1d1b24] active:bg-[#dddbe3]";
 
 // Count badge: light grey, a touch darker on hover.
 const historyBadge =
@@ -131,17 +130,15 @@ export function Header({
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <GlassyButton
-              size="sm"
-              iconOnly
+            <button
+              type="button"
               onClick={onEstimateClick}
+              className="hidden md:flex items-center gap-2 rounded-xl border border-[#e5e2e9] bg-[#f8f8fb] px-4 py-2.5 text-sm font-semibold text-[#393541] transition-colors hover:bg-[#eae8ed] hover:text-[#1d1b24] active:bg-[#dddbe3]"
               aria-label="New estimate"
             >
               <Icon name="plus" className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
-              <span className="hidden whitespace-nowrap md:inline">
-                New estimate
-              </span>
-            </GlassyButton>
+              <span className="whitespace-nowrap">New estimate</span>
+            </button>
             <button
               type="button"
               onClick={onToggleMobileMenu}
