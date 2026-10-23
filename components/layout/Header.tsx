@@ -7,7 +7,6 @@ import { Icon } from "@/components/common/Icon";
 import { useModalA11y } from "@/lib/useModalA11y";
 import { LogoMagnet } from "./LogoMagnet";
 import { MenuToggle } from "./MenuToggle";
-import styles from "./Header.module.css";
 import type { HistoryEntry } from "@/types";
 
 interface HeaderProps {
@@ -21,9 +20,9 @@ interface HeaderProps {
   onClearHistory: () => void;
 }
 
-// Simple "New estimate" button: light grey, dark grey on hover, grey border.
+// Simple "New estimate" as plain text (orange on hover, like other nav links).
 const estimateBtn =
-  "group flex items-center gap-2 rounded-xl border border-[#e5e2e9] bg-[#f8f8fb] px-4 py-2.5 text-sm font-semibold text-[#393541] transition-colors hover:bg-[#eae8ed] hover:text-[#1d1b24] active:bg-[#dddbe3]";
+  "group flex items-center gap-2 text-sm font-semibold text-[#4c4854] transition-colors hover:text-[#ea580c]";
 
 // Count badge: light grey, a touch darker on hover.
 const historyBadge =
@@ -90,22 +89,22 @@ export function Header({
           >
             <LogoMagnet />
           </Link>
-          <div className={`hidden md:flex ${styles.navLinks}`}>
+          <div className="hidden md:flex items-center gap-8">
             <a
               href="#services"
-              className={`${styles.navLink} whitespace-nowrap text-sm font-medium`}
+              className="whitespace-nowrap text-sm font-medium text-[#4c4854] transition-colors hover:text-[#ea580c]"
             >
               Services
             </a>
             <a
               href="#how-it-works"
-              className={`${styles.navLink} whitespace-nowrap text-sm font-medium`}
+              className="whitespace-nowrap text-sm font-medium text-[#4c4854] transition-colors hover:text-[#ea580c]"
             >
               How it works
             </a>
             <a
               href="#why-costcalc"
-              className={`${styles.navLink} whitespace-nowrap text-sm font-medium`}
+              className="whitespace-nowrap text-sm font-medium text-[#4c4854] transition-colors hover:text-[#ea580c]"
             >
               Why CostCalc
             </a>
@@ -115,14 +114,14 @@ export function Header({
                 onClick={() =>
                   historyOpen ? closeHistory() : setHistoryOpen(true)
                 }
-                className={`${styles.navLink} whitespace-nowrap text-sm font-medium`}
+                className="inline-flex items-center gap-1.5 whitespace-nowrap text-sm font-medium text-[#4c4854] transition-colors hover:text-[#ea580c]"
                 aria-expanded={historyOpen}
                 aria-label="Saved estimates and drafts"
               >
                 <Icon name="clock" className="h-4 w-4" />
                 History
                 {history.length > 0 && (
-                  <span className={`ml-0.5 ${historyBadge}`}>
+                  <span className={historyBadge}>
                     {history.length}
                   </span>
                 )}
@@ -133,7 +132,7 @@ export function Header({
             <button
               type="button"
               onClick={onEstimateClick}
-              className="hidden md:flex items-center gap-2 rounded-xl border border-[#e5e2e9] bg-[#f8f8fb] px-4 py-2.5 text-sm font-semibold text-[#393541] transition-colors hover:bg-[#eae8ed] hover:text-[#1d1b24] active:bg-[#dddbe3]"
+              className="hidden md:flex items-center gap-2 text-sm font-semibold text-[#4c4854] transition-colors hover:text-[#ea580c]"
               aria-label="New estimate"
             >
               <Icon name="plus" className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
@@ -187,15 +186,9 @@ export function Header({
                   onCloseMobileMenu();
                   onEstimateClick();
                 }}
-                className={`${estimateBtn} mt-2 justify-center`}
+                className="flex items-center gap-2 text-sm font-semibold text-[#4c4854] transition-colors hover:text-[#ea580c] mt-2"
               >
                 Estimate my project
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/plus.png"
-                  alt=""
-                  className="h-4 w-4 brightness-0 invert transition-transform duration-300 group-hover:rotate-90"
-                />
               </button>
             </div>
           </div>
@@ -262,7 +255,7 @@ export function Header({
                             className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
                               entry.type === "estimate"
                                 ? "bg-[#e9f8f0] text-[#198454]"
-                                : "bg-[#fff4e0] text-[#9a681c]"
+                                : "bg-[#fff4e0] text-[#dd8511]"
                             }`}
                           >
                             {entry.type}
