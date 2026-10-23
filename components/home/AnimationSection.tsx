@@ -1,8 +1,4 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
 import { Reveal } from "@/components/common/Reveal";
-import { useAppReady } from "@/components/common/useAppReady";
 import { Icon } from "@/components/common/Icon";
 
 interface AnimationFeature {
@@ -29,7 +25,7 @@ const animationFeatures: AnimationFeature[] = [
     id: 2,
     icon: "globe",
     title: "Global Pricing",
-    description: "Localized costs for 150+ countries and cities. Currency, labor rates, and market conditions included.",
+    description: "Localized costs for 28 countries and 161 cities. Currency, labor rates, and market conditions included.",
     color: "text-[#398b7d]",
     bgColor: "bg-[#e8f8f1]",
     animationType: "float",
@@ -123,42 +119,14 @@ const animationStyles = `
   .animate-rotate-slow,
   .animate-slide-in,
   .animate-scale-pop,
-  .animate-glow-pulse {
+  .animate-glow-pulse,
+  .feature-particle {
     animation: none !important;
   }
 }
 `;
 
 export function AnimationSection() {
-  const [visibleFeatures, setVisibleFeatures] = useState<Set<number>>(new Set());
-  const observerRef = useRef<IntersectionObserver | null>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const ready = useAppReady();
-
-  useEffect(() => {
-    if (!ready) return;
-
-    observerRef.current = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((entry) => {
-          if (entry.isIntersecting) {
-            const id = Number(entry.target.getAttribute("data-id"));
-            setVisibleFeatures((prev) => new Set(prev).add(id));
-          }
-        });
-      },
-      { threshold: 0.1, rootMargin: "0px 0px -50px 0px" }
-    );
-
-    if (containerRef.current) {
-      containerRef.current.querySelectorAll("[data-id]").forEach((el) => {
-        observerRef.current?.observe(el);
-      });
-    }
-
-    return () => observerRef.current?.disconnect();
-  }, [ready]);
-
   const getAnimationClass = (type: AnimationFeature["animationType"]) => {
     switch (type) {
       case "float":
@@ -207,15 +175,14 @@ export function AnimationSection() {
 
         {/* Animated Feature Cards */}
         <Reveal delay={360}>
-          <div ref={containerRef} className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {animationFeatures.map((feature, index) => (
               <div
                 key={feature.id}
                 data-id={feature.id}
-                className={`group relative rounded-[24px] border border-[#e7e4eb] bg-white p-6 sm:p-8 transition-all duration-500 hover:-translate-y-1.5 hover:border-[#cec7ec] hover:shadow-[0_20px_40px_rgba(34,29,49,0.08)] ${visibleFeatures.has(feature.id) ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"}`}
+                className="group relative rounded-[24px] border border-[#e7e4eb] bg-white p-6 sm:p-8 transition-all duration-500 hover:-translate-y-1.5 hover:border-[#cec7ec] hover:shadow-[0_20px_40px_rgba(34,29,49,0.08)]"
                 style={{
                   transitionDelay: `${index * 100}ms`,
-                  transitionDuration: "600ms",
                 }}
               >
                 {/* Animated Icon Container */}
@@ -252,7 +219,7 @@ export function AnimationSection() {
                   {[1, 2, 3].map((i) => (
                     <div
                       key={i}
-                      className="absolute rounded-full bg-current/20"
+                      className="feature-particle absolute rounded-full bg-current/20"
                       style={{
                         width: `${8 + i * 4}px`,
                         height: `${8 + i * 4}px`,

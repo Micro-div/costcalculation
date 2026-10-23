@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState, useEffect, useCallback } from "react";
 import { Reveal } from "@/components/common/Reveal";
 import { Icon } from "@/components/common/Icon";
@@ -71,8 +72,9 @@ export function ImageCarousel() {
     setTimeout(() => setIsAnimating(false), 500);
   }, [isAnimating]);
 
-  // Auto-advance carousel
+  // Auto-advance carousel (skipped when the visitor prefers reduced motion).
   useEffect(() => {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const interval = setInterval(nextSlide, 5000);
     return () => clearInterval(interval);
   }, [nextSlide]);
@@ -126,11 +128,12 @@ export function ImageCarousel() {
                     className="group relative w-full flex-shrink-0 min-h-[380px] sm:min-h-[480px]"
                   >
                     <div className="absolute inset-0 z-0">
-                      <img
+                      <Image
                         src={image.src}
                         alt={image.alt}
-                        className="w-full h-full object-cover opacity-80 transition duration-1000 ease-out group-hover:opacity-100 group-hover:scale-110"
-                        loading="lazy"
+                        fill
+                        sizes="(max-width: 768px) 100vw, 1120px"
+                        className="object-cover opacity-80 transition duration-1000 ease-out group-hover:opacity-100 group-hover:scale-110"
                       />
                       {/* Gradient overlay for text readability */}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
@@ -209,11 +212,12 @@ export function ImageCarousel() {
                   key={`${image.id}-${i}`}
                   className="image-strip-card"
                 >
-                  <img
+                  <Image
                     src={image.src}
                     alt={image.alt}
-                    className=""
-                    loading="lazy"
+                    fill
+                    sizes="320px"
+                    className="object-cover"
                   />
                 </div>
               ))}

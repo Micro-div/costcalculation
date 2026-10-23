@@ -706,6 +706,22 @@ export const allCurrencies = [
   "VND",
 ] as const;
 
+// ---------------------------------------------------------------------------
+// PRICING CONFIGURATION
+// ---------------------------------------------------------------------------
+// Exchange rates, tax rates (per country above) and the USD rate cards all
+// live in this one configuration file. Every table carries the date it was
+// last reviewed, so an estimate can always state how old its inputs are.
+//
+// Update this date whenever any rate in this file (exchange, tax or pricing)
+// changes, then bump `lastPricingUpdate` too.
+export const PRICING_META = {
+  lastPricingUpdate: "2026-09-01",
+  exchangeRatesUpdated: "2026-09-01",
+  taxRatesUpdated: "2026-09-01",
+  source: "CostCalc rule-based rate cards (USD base) + country pricing multipliers",
+} as const;
+
 export const USD_RATES: Record<CurrencyCode, number> = {
   USD: 1,
   CAD: 1.37,

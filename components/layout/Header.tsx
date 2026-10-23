@@ -1,24 +1,15 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Icon } from "@/components/common/Icon";
 import { GlassyButton } from "@/components/common/GlassyButton";
+import { useModalA11y } from "@/lib/useModalA11y";
 import { LogoMagnet } from "./LogoMagnet";
 import { MenuToggle } from "./MenuToggle";
 import styles from "./Header.module.css";
-import type { EstimateItem, EstimateResult } from "@/types";
-
-interface HistoryEntry {
-  id: string;
-  type: "estimate" | "draft";
-  title: string;
-  savedAt: string;
-  data:
-    | EstimateResult
-    | { items: EstimateItem[]; businessName: string; customerName: string };
-}
+import type { HistoryEntry } from "@/types";
 
 interface HeaderProps {
   mobileMenuOpen: boolean;
@@ -52,7 +43,8 @@ export function Header({
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historyClosing, setHistoryClosing] = useState(false);
   const [headerHidden, setHeaderHidden] = useState(false);
-  const [lastScrollY, setLastScrollY] = useState(0);
+  const lastScrollYRef = useRef(0);
+  const historyDialogRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
 
   // Scroll direction detection for hide/show header
@@ -63,13 +55,28 @@ export function Header({
     const handleScroll = () => {
       if (ticking) return;
       ticking = true;
-      
+
       window.requestAnimationFrame(() => {
         const currentScrollY = window.scrollY;
-        const delta = currentScrollY - lastScrollY;
+        const delta = currentScrollY - lastScrollYRef.current;
+
+        // While the mobile menu is open, scrolling down closes it and hides
+        // the navbar; scrolling up shows it again. A click must never hide
+        // an open menu, even if a scroll event fires right after the click.
+        if (
+          mobileMenuOpen &&
+          delta > threshold &&
+          currentScrollY > 80
+        ) {
+          onCloseMobileMenu();
+          setHeaderHidden(true);
+          lastScrollYRef.current = currentScrollY;
+          ticking = false;
+          return;
+        }
 
         // Scrolling down - hide header (after passing initial threshold)
-        if (delta > threshold && currentScrollY > 80) {
+        if (!mobileMenuOpen && delta > threshold && currentScrollY > 80) {
           setHeaderHidden(true);
         }
         // Scrolling up - show header immediately
@@ -81,14 +88,14 @@ export function Header({
           setHeaderHidden(false);
         }
 
-        setLastScrollY(currentScrollY);
+        lastScrollYRef.current = currentScrollY;
         ticking = false;
       });
     };
 
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, [lastScrollY]);
+  }, [mobileMenuOpen, onCloseMobileMenu]);
 
   // History ko page ke bilkul beech (fixed center) modal ki tarah dikhao.
   // Khali history hone par bhi panel khule (empty state dikhay).
@@ -100,14 +107,7 @@ export function Header({
     }, 200);
   }, []);
 
-  useEffect(() => {
-    if (!historyOpen) return;
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeHistory();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [historyOpen, closeHistory]);
+  useModalA11y(historyDialogRef, closeHistory, undefined, historyOpen);
 
   const formatDate = (iso: string) => {
     try {
@@ -268,11 +268,13 @@ export function Header({
           onPointerDown={closeHistory}
         >
           <div
+            ref={historyDialogRef}
+            tabIndex={-1}
             role="dialog"
             aria-modal="true"
             aria-label="History"
             onPointerDown={(e) => e.stopPropagation()}
-            className={`flex max-h-[80vh] w-[600px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-[#e8e5ed] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.3)] ${historyClosing ? "history-modal--closing" : "history-modal"}`}
+            className={`flex max-h-[80vh] w-[600px] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-[#e8e5ed] bg-white shadow-[0_24px_60px_rgba(0,0,0,0.3)] outline-none ${historyClosing ? "history-modal--closing" : "history-modal"}`}
           >
             <div className="flex items-center justify-between border-b border-[#f0eef3] px-6 py-4">
               <p className="text-base font-bold text-[#2b2732]">History</p>

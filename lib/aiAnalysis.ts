@@ -1,40 +1,27 @@
-// Client-side helper for the optional AI analysis step (POST /api/analyze).
+// Client-side helper for the optional AI extraction step (POST /api/analyze).
 // - Never touches GROQ_API_KEY and never calls Groq directly; only our route.
-// - Caches results by normalized text (module-level Map + localStorage with a
-//   versioned key, max 50 entries, 24h expiry) so the same input never calls
-//   the API twice.
-// - Any failure (network, 10s timeout, non-200, invalid JSON) resolves to null
-//   so callers silently fall back to the rule-based analyzeProject().
+// - Caches results by normalized text + location (module-level Map +
+//   localStorage with a versioned key, max 50 entries, 24h expiry).
+// - Any failure (network, timeout, non-200, invalid JSON, abort) resolves to
+//   null so callers quietly use the rule-based extractor.
+//
+// IMPORTANT: the AI only EXTRACTS the project. It returns no prices, no
+// timeline and no confidence score — those come from lib/pricing.ts.
 
-export interface AiCostComponent {
-  name: string;
-  cost: number;
-  percentage: number;
-  note: string;
-}
-
-// The AI's own real-world market price range for the user's location, in USD,
-// BEFORE the contingency and taxes we add on top. Never taken from the preset
-// category ranges — those are not even sent to the model.
-export interface AiPricing {
-  low: number;
-  typical: number;
-  high: number;
-}
-
-export type AiTimelineUnit = "weeks" | "months" | "years";
-
-// Realistic calendar duration for the project type the AI chose: months or
-// years for physical builds, weeks or months for software and services.
-export interface AiDuration {
-  min: number;
-  max: number;
-  unit: AiTimelineUnit;
-}
+import type { ScopeItem } from "@/types";
 
 export type AiProjectKind = "physical" | "software" | "service";
 
-import type { ScopeItem } from "@/types";
+export interface AiQuantities {
+  acres?: number;
+  rooms?: number;
+  floors?: number;
+  units?: number;
+  animals?: number;
+  squareMeters?: number;
+  kilometers?: number;
+  staff?: number;
+}
 
 // The "needs_info" outcome: the input was only a name or too vague, so the
 // AI returns what it thinks the project is plus short questions. NO estimate.
@@ -45,11 +32,11 @@ export interface AiNeedsInfoPayload {
 }
 
 export interface AiAnalysisPayload {
-  // "ok" when the AI returned a full estimate (needs_info is the other shape).
+  // "ok" when the AI extracted a full requirement set.
   status?: "ok";
   understood?: string;
   // Compressed 1-2 line summary of the project, used in place of the raw
-  // description when building the estimate (saves tokens, keeps it focused).
+  // description when building the estimate.
   projectBrief?: string;
   category: string;
   projectType: string;
@@ -57,25 +44,21 @@ export interface AiAnalysisPayload {
   heading: string;
   features: string[];
   complexity: string;
-  confidence: number;
+  quantities?: AiQuantities;
+  locationHint?: string;
   assumptions?: string[];
-  components?: AiCostComponent[];
   scope?: ScopeItem[];
   kind?: AiProjectKind;
-  pricing?: AiPricing;
-  duration?: AiDuration;
   source?: "ai" | "fallback";
   model?: string | null;
 }
 
 export type AiAnalysisResponse = AiAnalysisPayload | AiNeedsInfoPayload;
 
-const CACHE_KEY = "costcalc-ai-analysis-v4";
+const CACHE_KEY = "costcalc-ai-analysis-v5";
 const CACHE_MAX_ENTRIES = 50;
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24h
-// The server may re-ask the model once when a physical project comes back
-// priced implausibly low, so allow for two model round-trips.
-const REQUEST_TIMEOUT_MS = 40000;
+const REQUEST_TIMEOUT_MS = 30000;
 
 interface CacheEntry {
   savedAt: number;
@@ -93,19 +76,6 @@ export function normalizeDescriptionText(text: string): string {
     .replace(/\s+/g, " ");
 }
 
-function isValidComponent(value: unknown): value is AiCostComponent {
-  if (typeof value !== "object" || value === null) return false;
-  const v = value as Partial<AiCostComponent>;
-  return (
-    typeof v.name === "string" &&
-    typeof v.cost === "number" &&
-    Number.isFinite(v.cost) &&
-    typeof v.percentage === "number" &&
-    Number.isFinite(v.percentage) &&
-    typeof v.note === "string"
-  );
-}
-
 function isValidScopeItem(value: unknown): value is ScopeItem {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Partial<ScopeItem>;
@@ -116,39 +86,32 @@ function isValidScopeItem(value: unknown): value is ScopeItem {
 }
 
 const AI_KINDS: AiProjectKind[] = ["physical", "software", "service"];
-const AI_TIMELINE_UNITS: AiTimelineUnit[] = ["weeks", "months", "years"];
+const QUANTITY_KEYS = [
+  "acres",
+  "rooms",
+  "floors",
+  "units",
+  "animals",
+  "squareMeters",
+  "kilometers",
+  "staff",
+] as const;
 
-// Accepts the model's low/typical/high triple, fixing only an out-of-order
-// range so the UI can never show low > high.
-function sanitizePricing(value: unknown): AiPricing | undefined {
+function sanitizeQuantities(value: unknown): AiQuantities | undefined {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return undefined;
   }
-  const v = value as Partial<AiPricing>;
-  const low = Number(v.low);
-  const typical = Number(v.typical);
-  const high = Number(v.high);
-  if (![low, typical, high].every((n) => Number.isFinite(n) && n > 0)) {
-    return undefined;
+  const source = value as Record<string, unknown>;
+  const quantities: AiQuantities = {};
+  let found = false;
+  for (const key of QUANTITY_KEYS) {
+    const amount = Number(source[key]);
+    if (Number.isFinite(amount) && amount > 0 && amount <= 10_000_000) {
+      quantities[key] = amount;
+      found = true;
+    }
   }
-  return { low: Math.min(low, typical), typical, high: Math.max(high, typical) };
-}
-
-function sanitizeDuration(value: unknown): AiDuration | undefined {
-  if (typeof value !== "object" || value === null || Array.isArray(value)) {
-    return undefined;
-  }
-  const v = value as Partial<AiDuration>;
-  let min = Math.round(Number(v.min));
-  let max = Math.round(Number(v.max));
-  if (!Number.isFinite(min) || !Number.isFinite(max) || min <= 0 || max <= 0) {
-    return undefined;
-  }
-  if (min > max) [min, max] = [max, min];
-  const unit = AI_TIMELINE_UNITS.includes(v.unit as AiTimelineUnit)
-    ? (v.unit as AiTimelineUnit)
-    : "weeks";
-  return { min, max, unit };
+  return found ? quantities : undefined;
 }
 
 function isValidNeedsInfoPayload(value: unknown): value is AiNeedsInfoPayload {
@@ -170,21 +133,13 @@ function isValidNeedsInfoPayload(value: unknown): value is AiNeedsInfoPayload {
 function isValidPayload(value: unknown): value is AiAnalysisPayload {
   if (typeof value !== "object" || value === null) return false;
   const v = value as Partial<AiAnalysisPayload>;
-  // The server may send explicit nulls for the optional AI-only fields.
   const raw = value as Record<string, unknown>;
   const statusOk = raw.status === undefined || raw.status === "ok";
   const kindOk =
     raw.kind === undefined ||
     raw.kind === null ||
-    (typeof raw.kind === "string" && AI_KINDS.includes(raw.kind as AiProjectKind));
-  const pricingOk =
-    raw.pricing === undefined ||
-    raw.pricing === null ||
-    sanitizePricing(raw.pricing) !== undefined;
-  const durationOk =
-    raw.duration === undefined ||
-    raw.duration === null ||
-    sanitizeDuration(raw.duration) !== undefined;
+    (typeof raw.kind === "string" &&
+      AI_KINDS.includes(raw.kind as AiProjectKind));
   return (
     statusOk &&
     typeof v.category === "string" &&
@@ -194,24 +149,22 @@ function isValidPayload(value: unknown): value is AiAnalysisPayload {
     Array.isArray(v.features) &&
     v.features.every((feature) => typeof feature === "string") &&
     typeof v.complexity === "string" &&
-    typeof v.confidence === "number" &&
-    Number.isFinite(v.confidence) &&
-    (v.components === undefined ||
-      (Array.isArray(v.components) && v.components.every(isValidComponent))) &&
+    (v.quantities === undefined ||
+      v.quantities === null ||
+      sanitizeQuantities(v.quantities) !== undefined) &&
+    (v.locationHint === undefined || typeof v.locationHint === "string") &&
     (v.assumptions === undefined ||
       (Array.isArray(v.assumptions) &&
         v.assumptions.every((a) => typeof a === "string"))) &&
     (v.scope === undefined ||
       (Array.isArray(v.scope) && v.scope.every(isValidScopeItem))) &&
     kindOk &&
-    pricingOk &&
-    durationOk &&
     (v.source === undefined || v.source === "ai" || v.source === "fallback") &&
     (v.model === undefined || v.model === null || typeof v.model === "string")
   );
 }
 
-// Accepts either response shape: the full estimate or the needs_info card.
+// Accepts either response shape: the full extraction or the needs_info card.
 export function isValidAiResponse(value: unknown): value is AiAnalysisResponse {
   return isValidNeedsInfoPayload(value) || isValidPayload(value);
 }
@@ -276,9 +229,6 @@ function pruneCache(): void {
   }
 }
 
-// Cache key includes the location: the AI prices the project at real-world
-// market cost for the user's location, so the same words in another country
-// must produce a different (not cached) analysis.
 function cacheKey(
   description: string,
   locationId?: string | null,
@@ -309,6 +259,7 @@ export async function fetchAiAnalysis(
   description: string,
   locationId?: string | null,
   locationLabel?: string | null,
+  signal?: AbortSignal,
 ): Promise<AiAnalysisResponse | null> {
   const key = cacheKey(description, locationId);
   if (!key) return null;
@@ -323,6 +274,8 @@ export async function fetchAiAnalysis(
   const request = (async (): Promise<AiAnalysisResponse | null> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+    const forwardAbort = () => controller.abort();
+    signal?.addEventListener("abort", forwardAbort, { once: true });
     try {
       const res = await fetch("/api/analyze", {
         method: "POST",
@@ -330,8 +283,8 @@ export async function fetchAiAnalysis(
         body: JSON.stringify({
           description,
           ...(locationId ? { locationId } : {}),
-          // Human label ("Lahore, Pakistan") so the AI prices at that city's
-          // real market rates instead of only the country-level default.
+          // Human label ("Lahore, Pakistan") sent as user data, never as part
+          // of the system prompt.
           ...(locationLabel ? { location: locationLabel } : {}),
         }),
         signal: controller.signal,
@@ -350,9 +303,6 @@ export async function fetchAiAnalysis(
         console.warn("[aiAnalysis] /api/analyze returned an invalid payload");
         return null;
       }
-      // The "needs_info" outcome: cache it like any other AI result and
-      // return it as-is — the caller shows the questions card instead of
-      // an estimate.
       if (isValidNeedsInfoPayload(data)) {
         const payload: AiNeedsInfoPayload = {
           status: "needs_info",
@@ -377,9 +327,11 @@ export async function fetchAiAnalysis(
         heading: data.heading,
         features: data.features,
         complexity: data.complexity,
-        confidence: Math.min(1, Math.max(0, data.confidence)),
-        ...(Array.isArray(data.components)
-          ? { components: data.components }
+        ...(sanitizeQuantities(data.quantities)
+          ? { quantities: sanitizeQuantities(data.quantities) }
+          : {}),
+        ...(typeof data.locationHint === "string"
+          ? { locationHint: data.locationHint }
           : {}),
         ...(Array.isArray(data.scope)
           ? {
@@ -407,31 +359,23 @@ export async function fetchAiAnalysis(
         AI_KINDS.includes(data.kind as AiProjectKind)
           ? { kind: data.kind as AiProjectKind }
           : {}),
-        // The AI's own real-world price range and timeline (sanitized again
-        // here because the stored payload may predate the current schema).
-        ...(sanitizePricing(data.pricing)
-          ? { pricing: sanitizePricing(data.pricing) as AiPricing }
-          : {}),
-        ...(sanitizeDuration(data.duration)
-          ? { duration: sanitizeDuration(data.duration) as AiDuration }
-          : {}),
       };
-      // Only cache real AI results. Fallbacks are returned to the caller
-      // but NOT cached, so the AI is retried on the next attempt.
       if (data.source !== "fallback") {
         memoryCache.set(key, { savedAt: Date.now(), payload });
         writeStorage();
       }
       return payload;
     } catch (err) {
-      // Network error, timeout or abort — rule-based fallback. The real
-      // reason is surfaced in the console so the failure is diagnosable.
-      console.warn(
-        "[aiAnalysis] request failed:",
-        err instanceof Error ? err.message : String(err),
-      );
+      if (!signal?.aborted) {
+        console.warn(
+          "[aiAnalysis] request failed:",
+          err instanceof Error ? err.message : String(err),
+        );
+      }
       return null;
     } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", forwardAbort);
       inflight.delete(key);
     }
   })();

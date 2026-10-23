@@ -134,6 +134,8 @@ export interface EstimateResult {
   complexity: string;
   aiSource?: "ai" | "fallback";
   aiModel?: string | null;
+  /** Server-side id used by share links (the link carries only this id). */
+  shareId?: string;
 }
 
 export interface SharedEstimate {
@@ -142,6 +144,31 @@ export interface SharedEstimate {
   locationId: LocationId;
   sizeId: ProjectSizeId;
   qualityId: QualityId;
+}
+
+// A saved quotation draft. New drafts store the COMPLETE estimate so loading
+// one never has to rebuild it from (or merge it into) the current project.
+export interface SavedDraftData {
+  estimate: EstimateResult;
+  businessName: string;
+  customerName: string;
+  identity: string;
+}
+
+// Draft shape written by older app versions. It is recognised so old storage
+// can be handled gracefully, but it is no longer created.
+export interface LegacyDraftData {
+  items: EstimateItem[];
+  businessName: string;
+  customerName: string;
+}
+
+export interface HistoryEntry {
+  id: string;
+  type: "estimate" | "draft";
+  title: string;
+  savedAt: string;
+  data: EstimateResult | SavedDraftData | LegacyDraftData;
 }
 
 export interface CustomProjectType {

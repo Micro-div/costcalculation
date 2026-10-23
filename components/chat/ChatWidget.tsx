@@ -83,6 +83,17 @@ export function ChatWidget({
   // follow-up changes ("make it bigger", "add 3 floors") and re-estimate.
   const [activeBrief, setActiveBrief] = useState<string | null>(null);
 
+  // A location the user mentioned in a message. We never silently replace
+  // the picker; the user confirms it first.
+  const [pendingLocationId, setPendingLocationId] =
+    useState<LocationId | null>(null);
+  // Stale-response guard: resetting/closing the chat invalidates in-flight
+  // replies so an old answer can never appear in a fresh conversation.
+  const requestIdRef = useRef(0);
+  // Hard guard against concurrent sends: state alone can be one render behind
+  // when Enter and the send button fire together.
+  const chatPendingRef = useRef(false);
+
   // Location picker: the chat can price for any country + city, independent of
   // whatever the main estimator currently has selected.
   const [countryId, setCountryId] = useState(countries[0]?.id ?? "us");
@@ -224,6 +235,15 @@ export function ChatWidget({
     }
 
     if (!introPlayedRef.current) {
+      // Reduced motion: skip the bounce entirely but keep the final (~41px)
+      // resting size. No animationend event will ever fire in this mode.
+      if (
+        window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ) {
+        introPlayedRef.current = true;
+        setFabSmall(true);
+        return;
+      }
       // Intro ka intezaar: heading animation abhi chal rahi ho sakti hai.
       if (!bounceOnTitleEnd) return;
       introPlayedRef.current = true;
@@ -248,21 +268,27 @@ export function ChatWidget({
   };
 
   const resetChat = () => {
+    requestIdRef.current += 1;
+    chatPendingRef.current = false;
     setThinking(false);
     setCreatingBrief(null);
     setInput("");
     setActiveBrief(null);
+    setPendingLocationId(null);
     seedGreeting();
   };
 
   // X button: close AND start fresh next time.
   const closeChat = () => {
+    requestIdRef.current += 1;
+    chatPendingRef.current = false;
     setOpen(false);
     setMessages([]);
     setInput("");
     setThinking(false);
     setCreatingBrief(null);
     setActiveBrief(null);
+    setPendingLocationId(null);
   };
 
   // Minimize (keep the conversation): plays a smooth close animation first.
@@ -280,11 +306,6 @@ export function ChatWidget({
     const handlePointerDown = (e: PointerEvent) => {
       const target = e.target as Node;
       if (panelRef.current && !panelRef.current.contains(target)) {
-        // Ignore taps inside the portal LocationSelect dropdown (it lives
-        // outside the chat panel in the DOM), so choosing a city never
-        // closes the chat.
-        const element = e.target as Element | null;
-        if (element?.closest?.("[data-location-select-panel]")) return;
         minimizeChat();
       }
     };
@@ -314,18 +335,18 @@ export function ChatWidget({
 
   const sendMessage = async (rawText: string) => {
     const text = rawText.trim();
-    if (!text || thinking) return;
+    if (!text || thinking || chatPendingRef.current) return;
+    chatPendingRef.current = true;
 
-    // If the message names a country or city, sync the picker to it.
+    // If the message names a country or city, do not change the picker
+    // silently — remember it and let the user confirm.
     const found = matchLocation(text);
-    if (found) {
+    if (found && found !== locationId) {
       const loc = locations.find((item) => item.id === found);
-      if (loc) {
-        setCountryId(loc.countryId);
-        setLocationId(loc.id);
-      }
+      if (loc) setPendingLocationId(loc.id);
     }
 
+    const requestId = ++requestIdRef.current;
     const userMessage: ChatMessage = {
       id: newId("u"),
       role: "user",
@@ -347,6 +368,10 @@ export function ChatWidget({
       requestChatReply(turns, locationLabelText, activeBrief ?? ""),
       wait(MIN_THINKING_MS),
     ]);
+
+    // Reset/close/new message happened while this request was in flight.
+    // resetChat/closeChat already cleared the pending guard, so leave it alone.
+    if (requestId !== requestIdRef.current) return;
 
     // Offline/fallback: merge the change into the existing brief so follow-up
     // tweaks still produce an updated estimate without the AI.
@@ -373,6 +398,7 @@ export function ChatWidget({
       },
     ]);
     setThinking(false);
+    chatPendingRef.current = false;
   };
 
   const handleCreateEstimate = async (brief: string) => {
@@ -650,11 +676,46 @@ export function ChatWidget({
               ariaLabel="Chat location"
               className="min-w-0 flex-1"
             />
+            {pendingLocationId && (
+              <div
+                role="status"
+                className="mt-2 flex flex-wrap items-center gap-2 rounded-xl border border-[#e4dff8] bg-white px-2.5 py-2 text-[11px] text-[#4f4a57]"
+              >
+                <span className="min-w-0 flex-1">
+                  Use{" "}
+                  <strong className="font-bold text-[#5b4abe]">
+                    {locations.find((item) => item.id === pendingLocationId)
+                      ?.city ?? "this city"}
+                  </strong>{" "}
+                  for this estimate?
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleLocationChange(pendingLocationId);
+                    setPendingLocationId(null);
+                  }}
+                  className="rounded-lg bg-[#6754e7] px-2.5 py-1 font-bold text-white transition hover:bg-[#5946d3]"
+                >
+                  Use it
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingLocationId(null)}
+                  className="rounded-lg border border-[#dedbe5] px-2.5 py-1 font-semibold text-[#5f5b66] transition hover:bg-[#f5f4f7]"
+                >
+                  Keep current
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Messages */}
           <div
             ref={listRef}
+            role="log"
+            aria-live="polite"
+            aria-label="Chat messages"
             className="flex-1 space-y-3 overflow-y-auto bg-[#fbfaff] px-4 py-4"
           >
             {messages.map((message) => (

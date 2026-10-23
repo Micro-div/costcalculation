@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { formatCurrency, roundMoney } from "@/lib";
+import { CONTINGENCY_RATE } from "@/lib/pricing";
+import { useModalA11y } from "@/lib/useModalA11y";
 import type { EstimateItem, EstimateResult } from "@/types";
 import { Icon } from "@/components/common/Icon";
 
@@ -26,11 +28,44 @@ export function QuoteModal({
 }: QuoteModalProps) {
   const [businessName, setBusinessName] = useState("Your Company");
   const [customerName, setCustomerName] = useState("");
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Quote number and issue date are generated when the editor opens (never
+  // hardcoded). A saved share id keeps the number stable for the same estimate.
+  const [quoteMeta] = useState(() => {
+    const now = new Date();
+    const dateStamp = now.toISOString().slice(0, 10).replace(/-/g, "");
+    const suffix = estimate.shareId
+      ? estimate.shareId.slice(0, 6).toUpperCase()
+      : Math.random().toString(36).slice(2, 8).toUpperCase();
+    return {
+      number: `QC-${dateStamp}-${suffix}`,
+      issued: now.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      }),
+    };
+  });
+
+  useModalA11y(dialogRef, onClose);
+
+  // `afterprint` fires when the browser's print dialog closes, so the print
+  // styles are removed exactly then instead of after a guessed delay.
+  useEffect(() => {
+    const cleanup = () => document.body.classList.remove("printing-quote");
+    window.addEventListener("afterprint", cleanup);
+    return () => {
+      window.removeEventListener("afterprint", cleanup);
+      cleanup();
+    };
+  }, []);
+
   const subtotal = items.reduce(
     (sum, item) => sum + item.quantity * item.rate,
     0,
   );
-  const contingency = roundMoney(subtotal * 0.05);
+  const contingency = roundMoney(subtotal * CONTINGENCY_RATE);
   const taxes = roundMoney(
     (subtotal + contingency) * estimate.location.taxRate,
   );
@@ -52,16 +87,14 @@ export function QuoteModal({
   const printQuote = () => {
     document.body.classList.add("printing-quote");
     window.print();
-    window.setTimeout(
-      () => document.body.classList.remove("printing-quote"),
-      500,
-    );
   };
 
   return (
     <div className="quote-print-shell fixed inset-0 z-[100] overflow-y-auto bg-[#15131b]/65 p-3 backdrop-blur-sm sm:p-6">
       <div
-        className="quote-document mx-auto my-3 max-w-5xl overflow-hidden rounded-[24px] border border-white/60 bg-white shadow-2xl"
+        ref={dialogRef}
+        tabIndex={-1}
+        className="quote-document mx-auto my-3 max-w-5xl overflow-hidden rounded-[24px] border border-white/60 bg-white shadow-2xl outline-none"
         role="dialog"
         aria-modal="true"
         aria-label="Editable project quotation"
@@ -103,11 +136,13 @@ export function QuoteModal({
             </div>
             <div className="rounded-2xl bg-[#f5f3fb] px-5 py-4 text-sm sm:min-w-48">
               <p className="font-semibold text-[#26232e]">
-                Quotation QF-2026-0248
+                Quotation {quoteMeta.number}
               </p>
-              <p className="mt-1 text-[#777481]">Valid for 30 days</p>
-              <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${isEditingDraft ? "bg-[#e9f8f0] text-[#188052]" : "bg-[#e5f6ed] text-[#188052]"}`}>
-                {isEditingDraft ? "Estimate" : "Draft"}
+              <p className="mt-1 text-[#777481]">
+                Issued {quoteMeta.issued} · Valid for 30 days
+              </p>
+              <span className={`mt-3 inline-flex rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.12em] ${isEditingDraft ? "bg-[#fff4e0] text-[#9a681c]" : "bg-[#e5f6ed] text-[#188052]"}`}>
+                {isEditingDraft ? "Draft" : "Estimate"}
               </span>
             </div>
           </div>
@@ -146,7 +181,7 @@ export function QuoteModal({
               </thead>
               <tbody className="divide-y divide-[#ebe9ef]">
                 {items.map((item, index) => (
-                  <tr key={item.name}>
+                  <tr key={`${item.name}-${index}`}>
                     <td className="px-4 py-4">
                       <p className="font-semibold text-[#292631]">
                         {item.name}
@@ -199,7 +234,7 @@ export function QuoteModal({
               </span>
             </div>
             <div className="flex items-center justify-between border-b border-[#ebe9ef] py-3 text-sm text-[#66626e]">
-              <span>Contingency (5%)</span>
+              <span>Contingency ({Math.round(CONTINGENCY_RATE * 100)}%)</span>
               <span className="font-semibold text-[#302d37]">
                 {formatCurrency(contingency, estimate.location)}
               </span>

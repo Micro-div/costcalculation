@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { formatCompactCurrency, formatCurrency, formatDurationRange } from "@/lib";
+import { useModalA11y } from "@/lib/useModalA11y";
 import type { EstimateResult } from "@/types";
 import { Icon } from "@/components/common/Icon";
 
@@ -92,6 +93,9 @@ export function ShareModal({
   const [copied, setCopied] = useState(false);
   const [canNativeShare, setCanNativeShare] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useModalA11y(dialogRef, onClose);
 
   const total = formatCurrency(estimate.total, estimate.location);
   const range = `${formatCompactCurrency(estimate.low, estimate.location)}–${formatCompactCurrency(estimate.high, estimate.location)}`;
@@ -104,19 +108,6 @@ export function ShareModal({
       typeof navigator !== "undefined" && typeof navigator.share === "function",
     );
   }, []);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", onKeyDown);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [onClose]);
 
   const copyText = async (text: string): Promise<boolean> => {
     try {
@@ -250,10 +241,12 @@ export function ShareModal({
       }}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="share-modal-title"
-        className="w-full max-w-md overflow-hidden rounded-t-[24px] border border-white/60 bg-white shadow-2xl sm:rounded-[24px]"
+        className="w-full max-w-md overflow-hidden rounded-t-[24px] border border-white/60 bg-white shadow-2xl outline-none sm:rounded-[24px]"
       >
         <div className="flex items-start justify-between gap-4 px-5 pb-4 pt-5 sm:px-6">
           <div className="min-w-0">

@@ -1,15 +1,9 @@
-"use client";
-
-import { scrollToSection } from "@/lib";
 import type { IconName } from "@/types";
 import { Icon } from "@/components/common/Icon";
 import { Reveal } from "@/components/common/Reveal";
+import { EstimateActionButton } from "./EstimateActionButton";
 
-interface WhyCostCalcProps {
-  onEstimateClick: () => void;
-}
-
-export function WhyCostCalc({ onEstimateClick }: WhyCostCalcProps) {
+export function WhyCostCalc() {
   return (
     <section
       id="why-costcalc"
@@ -35,17 +29,10 @@ export function WhyCostCalc({ onEstimateClick }: WhyCostCalcProps) {
             </p>
           </Reveal>
           <Reveal delay={360} className="mt-7 inline-block">
-            <button
-            type="button"
-            onClick={onEstimateClick}
-            className="group flex items-center gap-2 rounded-xl bg-[#211e29] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#35313e]"
-          >
-            Create my free estimate
-            <Icon
-              name="arrow-right"
-              className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+            <EstimateActionButton
+              label="Create my free estimate"
+              className="group flex items-center gap-2 rounded-xl bg-[#211e29] px-5 py-3.5 text-sm font-bold text-white transition hover:bg-[#35313e]"
             />
-          </button>
           </Reveal>
         </div>
         <div className="grid gap-4 sm:grid-cols-2">

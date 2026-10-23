@@ -13,18 +13,11 @@ const columns = [
     ],
   },
   {
-    title: "Company",
+    title: "Explore",
     links: [
-      { label: "About", href: "#" },
-      { label: "Contact", href: "#" },
-    ],
-  },
-  {
-    title: "Support",
-    links: [
-      { label: "Help", href: "#" },{ label: "Privacy", href: "#" },  { label: "Terms", href: "#" },
-      
-    
+      { label: "Project showcase", href: "#image-carousel" },
+      { label: "Feature overview", href: "#animation-showcase" },
+      { label: "Start an estimate", href: "#estimator" },
     ],
   },
 ];
@@ -35,8 +28,6 @@ export function Footer() {
       <style>{`
         @keyframes wave-move { from { transform: translateX(0); } to { transform: translateX(-120px); } }
         @keyframes drop-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(7px); } }
-        @keyframes ball-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
-        /* Speed matched to 2sstore.com.pk footer waves: 10s / 8s / 6s */
       `}</style>
 
       <svg viewBox="0 0 120 28" className="-mb-px block w-full" aria-hidden="true">
@@ -59,8 +50,8 @@ export function Footer() {
 
       <div className="bg-black text-white">
         <div className="mx-auto max-w-[1200px] px-5 pb-6 sm:px-7">
-          <div className="grid grid-cols-3 items-start gap-x-3 gap-y-6 sm:gap-x-6 lg:grid-cols-[1.6fr_1fr_1fr_1fr] lg:gap-10">
-            <div className="col-span-3 max-w-sm lg:col-span-1">
+          <div className="grid grid-cols-2 items-start gap-x-3 gap-y-6 sm:gap-x-6 lg:grid-cols-[1.6fr_1fr_1fr] lg:gap-10">
+            <div className="col-span-2 max-w-sm lg:col-span-1">
               <div className="mb-3 [&_img]:h-12 [&_img]:w-auto [&_img]:brightness-0 [&_img]:invert sm:[&_img]:h-14 lg:[&_img]:h-16">
                 <Brand />
               </div>
@@ -68,9 +59,6 @@ export function Footer() {
                 Get a clearer idea of what your project might cost.
               </p>
               <div className="mt-3 flex flex-col items-start gap-3">
-                {/* <a href="mailto:hello@costcalc.com" className={`inline-flex min-h-[44px] items-center text-sm ${linkClass}`}>
-                  hello@costcalc.com
-                </a> */}
                 <ShareButton />
               </div>
             </div>

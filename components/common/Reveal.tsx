@@ -1,8 +1,12 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
-import { useAppReady } from "./useAppReady";
+import { useEffect, useRef } from "react";
+import type { ReactNode } from "react";
 
+/**
+ * Fade-up on scroll. Elements are visible by default when reduced motion is
+ * requested, and if IntersectionObserver is unavailable.
+ */
 export function Reveal({
   children,
   className = "",
@@ -13,13 +17,15 @@ export function Reveal({
   delay?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const ready = useAppReady();
 
   useEffect(() => {
     const el = ref.current;
-    if (!el || !ready) return;
+    if (!el) return;
 
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    if (
+      typeof IntersectionObserver === "undefined" ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
       el.classList.add("reveal-visible");
       return;
     }
@@ -33,12 +39,12 @@ export function Reveal({
           }
         });
       },
-      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" }
+      { threshold: 0.12, rootMargin: "0px 0px -8% 0px" },
     );
 
     observer.observe(el);
     return () => observer.disconnect();
-  }, [ready]);
+  }, []);
 
   return (
     <div

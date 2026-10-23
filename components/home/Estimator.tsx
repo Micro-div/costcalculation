@@ -19,7 +19,6 @@ import {
 import type {
   Category,
   CategoryId,
-  CustomProjectType,
   EstimateResult,
   IconName,
   Location,
@@ -30,7 +29,6 @@ import type {
 } from "@/types";
 import { Icon } from "@/components/common/Icon";
 import { LocationSelect } from "@/components/common/LocationSelect";
-import { useAppReady } from "@/components/common/useAppReady";
 
 export interface EstimatorProps {
   stage: Stage;
@@ -61,15 +59,8 @@ export interface EstimatorProps {
   isGenerating: boolean;
   onViewEstimate: () => void;
   onNewEstimate: () => void;
-  customDescription: string;
-  onCustomDescriptionChange: (value: string) => void;
-  onAnalyzeCustom: () => void;
+  /** True while the AI extraction request for the submitted description is running. */
   analyzing: boolean;
-  customProjectTypes: CustomProjectType[];
-  selectedCustom: CustomProjectType | null;
-  onSelectCustomType: (name: string) => void;
-  onRemoveCustomType: (name: string) => void;
-  customSummary: string;
 }
 
 /* Entrance animation: desktop slides in from the right, mobile slides up from the bottom.
@@ -131,11 +122,6 @@ const slideInCss = `
       }
     }
   }
-
-  html,
-  body {
-    overflow-x: clip;
-  }
 `;
 
 export function Estimator({
@@ -165,19 +151,10 @@ export function Estimator({
   isGenerating,
   onViewEstimate,
   onNewEstimate,
-  customDescription,
-  onCustomDescriptionChange,
-  onAnalyzeCustom,
   analyzing,
-  customProjectTypes,
-  selectedCustom,
-  onSelectCustomType,
-  onRemoveCustomType,
-  customSummary,
 }: EstimatorProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [revealed, setRevealed] = useState(false);
-  const ready = useAppReady();
   // Random example pool: starts deterministic (SSR-safe), shuffles after mount.
   const [exampleOffset, setExampleOffset] = useState(0);
   const visibleExamples = Array.from(
@@ -194,10 +171,12 @@ export function Estimator({
 
   useEffect(() => {
     const node = cardRef.current;
-    if (!node || !ready) return;
+    if (!node) return;
+    // Fallback: never leave the card hidden if the observer does not fire.
+    const fallback = window.setTimeout(() => setRevealed(true), 500);
     if (typeof IntersectionObserver === "undefined") {
       setRevealed(true);
-      return;
+      return () => window.clearTimeout(fallback);
     }
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -209,8 +188,11 @@ export function Estimator({
       { threshold: 0.15 },
     );
     observer.observe(node);
-    return () => observer.disconnect();
-  }, [ready]);
+    return () => {
+      window.clearTimeout(fallback);
+      observer.disconnect();
+    };
+  }, []);
 
   // Shuffle the example suggestions once on mount (client-only, so the
   // server-rendered HTML matches the first render and hydration stays clean).
@@ -346,20 +328,11 @@ export function Estimator({
                     />
                     <select
                       value={
-                        selectedCustom
-                          ? `custom:${selectedCustom.name}`
-                          : aiCategoryLabel
-                            ? `ai:${aiCategoryLabel}`
-                            : categoryId
+                        aiCategoryLabel ? `ai:${aiCategoryLabel}` : categoryId
                       }
                       onChange={(event) => {
                         const value = event.target.value;
-                        if (value.startsWith("custom:")) {
-                          onSelectCustomType(value.slice("custom:".length));
-                        } else if (value.startsWith("ai:")) {
-                          // AI-detected category — no preset categoryId change needed
-                          // The AI's pricing and labels are used directly
-                        } else {
+                        if (!value.startsWith("ai:")) {
                           onCategoryChange(value as CategoryId);
                         }
                       }}
@@ -375,18 +348,6 @@ export function Estimator({
                           {aiCategoryLabel}
                         </option>
                       )}
-                      {customProjectTypes.length > 0 && (
-                        <optgroup label="Your projects">
-                          {customProjectTypes.map((custom) => (
-                            <option
-                              key={custom.name}
-                              value={`custom:${custom.name}`}
-                            >
-                              {custom.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
                     </select>
                     <Icon
                       name="chevron-down"
@@ -394,71 +355,12 @@ export function Estimator({
                     />
                   </span>
                 </label>
-                {autoCategoryHint && !selectedCustom && (
+                {autoCategoryHint && (
                   <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-[#6d58db]">
                     <Icon name="sparkles" className="h-3 w-3" />
                     Auto-detected: {autoCategoryHint}
                   </p>
                 )}
-                {selectedCustom && (
-                  <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-[#f0edff] px-2.5 py-1.5">
-                    <span className="truncate text-[11px] font-semibold text-[#604fc6]">
-                      {selectedCustom.name}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => onRemoveCustomType(selectedCustom.name)}
-                      aria-label={`Remove ${selectedCustom.name}`}
-                      className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white text-[#8a2432] transition hover:bg-[#f6c9cf]"
-                    >
-                      <Icon name="close" className="h-3 w-3" />
-                    </button>
-                  </div>
-                )}
-                {/* <div className="mt-3 rounded-xl border border-[#e3e0e7] bg-white p-3">
-                <label
-                  htmlFor="custom-project-description"
-                  className="text-xs font-bold text-[#5c5864]"
-                >
-                  Describe your own project
-                </label>
-                <div className="mt-2 flex gap-2">
-                  <input
-                    id="custom-project-description"
-                    value={customDescription}
-                    onChange={(event) =>
-                      onCustomDescriptionChange(event.target.value.slice(0, 200))
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        onAnalyzeCustom();
-                      }
-                    }}
-                    placeholder="tyre shop with online booking and stock tracking"
-                    className="h-10 min-w-0 flex-1 rounded-lg border border-[#dedbe4] bg-white px-3 text-sm text-[#33303a] outline-none transition placeholder:text-[#aaa6b0] focus:border-[#7661e8] focus:ring-4 focus:ring-[#7661e8]/10"
-                  />
-                  <button
-                    type="button"
-                    onClick={onAnalyzeCustom}
-                    disabled={!customDescription.trim() || analyzing}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-[#6754e7] px-3 text-xs font-bold text-white transition hover:bg-[#5946d3] disabled:cursor-not-allowed disabled:bg-[#c8c3d6]"
-                  >
-                    {analyzing ? (
-                      <Icon name="rotate" className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      <Icon name="sparkles" className="h-3.5 w-3.5" />
-                    )}
-                    {analyzing ? "Analyzing" : "Analyze"}
-                  </button>
-                </div>
-                {customSummary && (
-                  <p className="mt-2 text-[11px] leading-5 text-[#797581]">
-                    {customSummary}
-                  </p>
-                )}
-              </div>
- */}
               </div>
               <div>
                 <LocationSelect
@@ -483,19 +385,47 @@ export function Estimator({
               </button> */}
               <button
                 type="submit"
-                disabled={!descriptionReady}
+                disabled={!descriptionReady || analyzing}
                 className="group flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#6754e7] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_25px_rgba(103,84,231,0.25)] transition hover:bg-[#5946d3] disabled:cursor-not-allowed disabled:bg-[#c8c3d6] disabled:shadow-none"
               >
-                Analyze my project
-                <Icon
-                  name="arrow-right"
-                  className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
-                />
+                {analyzing ? (
+                  <>
+                    <svg
+                      className="h-4 w-4 animate-spin"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      aria-hidden="true"
+                    >
+                      <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                      />
+                      <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
+                      />
+                    </svg>
+                    Reading your project…
+                  </>
+                ) : (
+                  <>
+                    Analyze my project
+                    <Icon
+                      name="arrow-right"
+                      className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
+                    />
+                  </>
+                )}
               </button>
             </div>
             <p className="mt-1.5 text-center text-[10px] font-medium text-[#95919c]">
               {descriptionReady
-                ? "Your description stays private and is never shared."
+                ? "Your description is sent to our AI provider only to extract the requirements. Estimates are calculated by our own pricing engine."
                 : "Add a few details above to continue."}
             </p>
           </form>
@@ -541,7 +471,7 @@ export function Estimator({
                 Quick question {questionStep + 1} of 2
               </span>
               <span className="text-xs font-medium text-[#8a8691]">
-                {selectedCustom?.name ?? selectedCategory.shortName} ·{" "}
+                {selectedCategory.shortName} ·{" "}
                 {selectedLocation.city}
               </span>
             </div>
@@ -756,8 +686,8 @@ export function Estimator({
 
         <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 px-2 pb-1 pt-3 text-[10px] font-semibold text-[#918c98]">
           <span className="flex items-center gap-1.5">
-            <Icon name="lock" className="h-3.5 w-3.5" />
-            Private by default
+            <Icon name="check" className="h-3.5 w-3.5" />
+            No sign-up needed
           </span>
           <span className="flex items-center gap-1.5">
             <Icon name="calculator" className="h-3.5 w-3.5" />

@@ -1,9 +1,14 @@
 "use client";
 
 import { formatCompactCurrency, formatCurrency, formatDurationRange } from "@/lib";
+import { CONTINGENCY_RATE, PRICING_META } from "@/lib/pricing";
 import type { EstimateResult as EstimateResultData } from "@/types";
 import { Icon } from "@/components/common/Icon";
 import { GlassyButton } from "@/components/common/GlassyButton";
+
+const pricingUpdatedLabel = new Date(
+  `${PRICING_META.lastPricingUpdate}T00:00:00Z`,
+).toLocaleDateString("en-GB", { month: "long", year: "numeric" });
 
 interface EstimateResultSectionProps {
   estimate: EstimateResultData;
@@ -236,7 +241,7 @@ export function EstimateResultSection({
             </div>
             <p className="mt-5 flex items-center gap-1.5 text-[10px] font-medium text-[#9a95a0]">
               <Icon name="clock" className="h-3.5 w-3.5" />
-              Pricing data updated September 2026
+              Pricing data updated {pricingUpdatedLabel}
             </p>
           </div>
         </div>
@@ -316,7 +321,7 @@ export function EstimateResultSection({
             </div>
             <div className="mt-6 space-y-2.5 border-t border-[#ece9ef] pt-5 text-sm">
               <div className="flex justify-between text-[#77727e]">
-                <span>Contingency (5%)</span>
+                <span>Contingency ({Math.round(CONTINGENCY_RATE * 100)}%)</span>
                 <span className="font-semibold text-[#4c4853]">
                   {formatCurrency(estimate.contingency, estimate.location)}
                 </span>

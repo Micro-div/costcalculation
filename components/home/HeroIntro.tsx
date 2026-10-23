@@ -1,15 +1,17 @@
+"use client";
+
+import { useEffect, type ReactNode } from "react";
 import { Icon } from "@/components/common/Icon";
-import { Estimator, type EstimatorProps } from "./Estimator";
 
 const title = "Know what your project should cost.";
 
 // Two colors: words 1, 3, 5 are BLUE and words 2, 4, 6 are GREY.
 const GREY = "#b5b3bb";
-const BLUE = "#6954df"; // same blue as your sparkles icon
+const BLUE = "#6954df";
 const wordColor = (i: number) => (i % 2 === 0 ? BLUE : GREY);
 
 const words = title.split(" ");
-// index of each word's first letter, so the delay keeps counting across words
+// Index of each word's first letter, so the stagger keeps counting across words.
 const offsets = words.map((_, i) => words.slice(0, i).join("").length);
 
 const heroCss = `
@@ -26,13 +28,28 @@ const heroCss = `
 }
 `;
 
-interface HeroProps extends EstimatorProps {
-  onTitleAnimationEnd?: () => void;
-}
-
-export function Hero({ onTitleAnimationEnd, ...props }: HeroProps) {
+/**
+ * Hero copy plus the estimator slot. Dispatches `costcalc:hero-title-done`
+ * once the heading has animated in (or immediately when motion is reduced),
+ * which the chat launcher uses for its one-off intro.
+ */
+export function HeroIntro({ estimator }: { estimator: ReactNode }) {
   const lastWordIndex = words.length - 1;
   const lastCharIndex = words[lastWordIndex].length - 1;
+
+  useEffect(() => {
+    const signalDone = () =>
+      window.dispatchEvent(new Event("costcalc:hero-title-done"));
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      signalDone();
+      return;
+    }
+
+    // Safety net in case animationend never fires (background tab, etc.).
+    const timer = window.setTimeout(signalDone, 4000);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <section className="hero-surface relative">
@@ -45,7 +62,7 @@ export function Hero({ onTitleAnimationEnd, ...props }: HeroProps) {
             <span className="grid h-5 w-5 place-items-center rounded-full bg-[#ece8ff]">
               <Icon name="sparkles" className="h-3.5 w-3.5 text-[#6954df]" />
             </span>
-            AI-powered project costing
+            AI-assisted project costing
           </div>
 
           <h1
@@ -60,8 +77,7 @@ export function Hero({ onTitleAnimationEnd, ...props }: HeroProps) {
                   style={{ color: wordColor(w) }}
                 >
                   {word.split("").map((char, c) => {
-                    const isLast =
-                      w === lastWordIndex && c === lastCharIndex;
+                    const isLast = w === lastWordIndex && c === lastCharIndex;
                     return (
                       <span
                         key={c}
@@ -69,7 +85,10 @@ export function Hero({ onTitleAnimationEnd, ...props }: HeroProps) {
                         style={{ animationDelay: `${(offsets[w] + c) * 90}ms` }}
                         onAnimationEnd={
                           isLast
-                            ? () => onTitleAnimationEnd?.()
+                            ? () =>
+                                window.dispatchEvent(
+                                  new Event("costcalc:hero-title-done"),
+                                )
                             : undefined
                         }
                       >
@@ -125,7 +144,7 @@ export function Hero({ onTitleAnimationEnd, ...props }: HeroProps) {
         </div>
 
         <div id="estimator" className="min-w-0 scroll-mt-24">
-          <Estimator {...props} />
+          {estimator}
         </div>
       </div>
     </section>

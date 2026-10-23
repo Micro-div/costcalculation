@@ -10,107 +10,21 @@ import type {
   Category,
   CategoryId,
   CurrencyCode,
-  EstimateItem,
   EstimateResult,
   Location,
   LocationId,
   ProjectSizeId,
   QualityId,
-  ScopeItem,
   TimelineUnit,
 } from "@/types";
 import { analyzeProjectWithAi } from "./analyzeProject";
-import type { AiAnalysisPayload, AiCostComponent } from "./aiAnalysis";
-
-// Turns the AI-provided cost components into authoritative breakdown rows:
-// their costs are re-scaled so they always add up to the computed subtotal,
-// and percentages are derived from the final costs. Returns undefined when
-// the AI didn't provide usable components (caller falls back to `items`).
-//
-// The AI's REAL amounts win whenever most components carry one: those are the
-// market costs for the user's location, and rounded percentages ("2%" on a
-// 2.4% line) must not silently rewrite them. The percentage split is only
-// used when the amounts are missing or zero.
-function buildCostComponents(
-  raw: AiCostComponent[] | undefined,
-  subtotal: number,
-): EstimateResult["components"] {
-  if (!Array.isArray(raw) || raw.length === 0 || subtotal <= 0) {
-    return undefined;
-  }
-  const usable = raw.filter(
-    (c) =>
-      typeof c?.name === "string" &&
-      c.name.trim() &&
-      Number.isFinite(c?.cost) &&
-      c.cost >= 0 &&
-      Number.isFinite(c?.percentage) &&
-      c.percentage >= 0,
-  );
-  if (usable.length === 0) return undefined;
-
-  const positiveCosts = usable.filter((c) => c.cost > 0).length;
-  const percentagesUsable = usable.every((c) => c.percentage > 0);
-  const useCosts =
-    positiveCosts >= Math.max(2, Math.ceil(usable.length / 2)) ||
-    !percentagesUsable;
-  let weights = usable.map((c) => (useCosts ? c.cost : c.percentage));
-  if (weights.reduce((sum, w) => sum + w, 0) <= 0) {
-    weights = usable.map((c) => (c.percentage > 0 ? c.percentage : 1));
-  }
-  const weightSum = weights.reduce((sum, w) => sum + w, 0);
-  if (weightSum <= 0) return undefined;
-
-  const components = usable.map((c, index) => ({
-    name: c.name.trim(),
-    cost: roundMoney(subtotal * (weights[index] / weightSum)),
-    percentage: 0,
-    note: typeof c.note === "string" ? c.note.trim() : "",
-  }));
-
-  // Fix rounding drift so the components always sum exactly to the subtotal.
-  const drift = subtotal - components.reduce((sum, c) => sum + c.cost, 0);
-  if (components.length > 0 && drift !== 0) {
-    const largest = components.reduce(
-      (maxIdx, c, idx) => (c.cost > components[maxIdx].cost ? idx : maxIdx),
-      0,
-    );
-    components[largest].cost = Math.max(0, components[largest].cost + drift);
-  }
-
-  for (const c of components) {
-    c.percentage = Math.round((c.cost / subtotal) * 100);
-  }
-  return components;
-}
-
-// Used whenever the AI did not provide its own component split (network
-// failure, missing key, bad output): the card still shows a real,
-// multi-line breakdown instead of one generic line.
-function buildGenericComponents(
-  subtotal: number,
-): EstimateResult["components"] {
-  if (subtotal <= 0) return undefined;
-  const shares = [
-    { name: "Design", weight: 0.18, note: "Visuals and planning" },
-    { name: "Build", weight: 0.34, note: "Core delivery work" },
-    { name: "Labour", weight: 0.23, note: "Team execution time" },
-    { name: "Testing", weight: 0.12, note: "Quality checks and fixes" },
-    { name: "Management", weight: 0.13, note: "Coordination and delivery" },
-  ];
-  const components = shares.map((s) => ({
-    name: s.name,
-    cost: roundMoney(subtotal * s.weight),
-    percentage: 0,
-    note: s.note,
-  }));
-  const drift = subtotal - components.reduce((sum, c) => sum + c.cost, 0);
-  components[1].cost = Math.max(0, components[1].cost + drift);
-  for (const c of components) {
-    c.percentage = Math.round((c.cost / subtotal) * 100);
-  }
-  return components;
-}
+import type { AiAnalysisPayload } from "./aiAnalysis";
+import {
+  CONTINGENCY_RATE,
+  computePrice,
+  detectPhysicalRateCard,
+  type PriceResult,
+} from "./pricing";
 
 export function roundMoney(value: number) {
   return Math.round(value);
@@ -126,8 +40,8 @@ const DURATION_LABELS: Record<
 };
 
 // "3–4 weeks", "14–22 months", "2–3 years" (or the short forms "3–4 wks").
-// The unit comes from the AI's timeline for the project type, so physical
-// builds read in months/years instead of weeks.
+// The unit comes from the rule engine, so physical builds read in months/years
+// instead of weeks.
 export function formatDurationRange(
   min: number,
   max: number,
@@ -170,31 +84,47 @@ export function formatCompactCurrency(value: number, location: Location) {
   return `${symbol}${Math.round(value)}`;
 }
 
-export function detectLocation(description: string): LocationId {
-  return matchLocation(description) ?? "us";
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-// Like detectLocation, but returns null when the text does NOT explicitly name
-// a city or country. The chat uses this so a location it finds in the
-// conversation can update the picker, while an unrelated message leaves the
-// user's current choice untouched.
-export function matchLocation(text: string): LocationId | null {
-  const value = ` ${String(text ?? "").toLowerCase()} `;
+// Names that are ordinary English words ("nice") must not be picked up from a
+// casual sentence. They only count when used as a place: capitalised and
+// preceded by a location preposition or followed by a comma.
+const AMBIGUOUS_CITY_PATTERNS: Record<string, RegExp> = {
+  nice: /(?:^|[,\s])(?:in|at|from|near|to|based in|located in)\s+Nice\b|\bNice\s*,/,
+};
 
-  // 1) City names first (most specific): "lahore" wins over "pakistan".
-  for (const loc of locations) {
-    if (value.includes(loc.city.toLowerCase())) return loc.id;
+// Finds an explicit city or country name in the text using WHOLE-WORD
+// matching. Substring matching used to turn "usage-based" into the USA,
+// "ukulele" into the UK and "a nice website" into Nice, France.
+export function matchLocation(text: string): LocationId | null {
+  const raw = String(text ?? "");
+  if (!raw.trim()) return null;
+
+  const sortedCities = [...locations].sort(
+    (a, b) => b.city.length - a.city.length,
+  );
+  for (const loc of sortedCities) {
+    const ambiguous = AMBIGUOUS_CITY_PATTERNS[loc.city.toLowerCase()];
+    if (ambiguous) {
+      if (ambiguous.test(raw)) return loc.id;
+      continue;
+    }
+    if (new RegExp(`\\b${escapeRegExp(loc.city)}\\b`, "i").test(raw)) {
+      return loc.id;
+    }
   }
 
-  // 2) Country names -> their first city.
   for (const country of countries) {
-    if (value.includes(country.country.toLowerCase())) {
-      const first = locations.find((loc) => loc.id === country.id);
+    if (
+      new RegExp(`\\b${escapeRegExp(country.country)}\\b`, "i").test(raw)
+    ) {
+      const first = locations.find((loc) => loc.countryId === country.id);
       if (first) return first.id;
     }
   }
 
-  // 3) Common aliases and short forms.
   const aliases: Array<{ words: string[]; id: LocationId }> = [
     { words: ["usa", "america", "united states"], id: "us" },
     { words: ["uk", "britain", "england", "scotland", "wales"], id: "uk" },
@@ -203,7 +133,11 @@ export function matchLocation(text: string): LocationId | null {
     { words: ["saudi"], id: "sa" },
   ];
   for (const { words, id } of aliases) {
-    if (words.some((word) => value.includes(word))) {
+    if (
+      words.some((word) =>
+        new RegExp(`\\b${escapeRegExp(word)}\\b`, "i").test(raw),
+      )
+    ) {
       const loc = locations.find((item) => item.id === id);
       if (loc) return loc.id;
     }
@@ -212,13 +146,38 @@ export function matchLocation(text: string): LocationId | null {
   return null;
 }
 
-// A human label for the pricing location, sent to the AI so it can price at
-// that city's real market rates (e.g. "Lahore, Pakistan").
+export function detectLocation(description: string): LocationId {
+  return matchLocation(description) ?? "us";
+}
+
+// A human label for the pricing location, e.g. "Lahore, Pakistan".
 export function locationLabel(locationId: LocationId): string {
   const loc = locations.find((item) => item.id === locationId);
   return loc ? `${loc.city}, ${loc.country}` : "";
 }
 
+function scalePriceToCurrency(price: PriceResult, factor: number): PriceResult {
+  if (factor === 1) return price;
+  return {
+    ...price,
+    items: price.items.map((item) => ({
+      ...item,
+      rate: roundMoney(item.rate * factor),
+    })),
+    components: price.components.map((component) => ({
+      ...component,
+      cost: roundMoney(component.cost * factor),
+    })),
+    subtotal: roundMoney(price.subtotal * factor),
+  };
+}
+
+/**
+ * Builds an estimate from the user's inputs and — optionally — the AI's
+ * extraction of the project. The AI supplies WHAT the project is; the rule
+ * engine in lib/pricing.ts supplies every price, timeline and confidence
+ * figure. No AI amount is ever added on top of the rule-based result.
+ */
 export function calculateEstimate(
   description: string,
   categoryId: CategoryId,
@@ -228,14 +187,6 @@ export function calculateEstimate(
   currencyOverride?: CurrencyCode | null,
   aiAnalysis?: AiAnalysisPayload | null,
 ): EstimateResult {
-  // The optional AI result supplies the project type, features, complexity,
-  // subject/heading/confidence AND — when available — its own real-world
-  // pricing (low/typical/high in USD for the user's location) and timeline.
-  // Preset price ranges are never sent to the AI and never override it.
-  // When the AI detects a new category (zoo, physical shop, etc.) that
-  // doesn't match any preset, the AI's labels are used for display and
-  // its pricing drives the estimate — the preset category is only a
-  // display fallback.
   const analysis = analyzeProjectWithAi(description, aiAnalysis);
   const category =
     categories.find((item) => item.id === categoryId) ?? categories[0];
@@ -249,128 +200,68 @@ export function calculateEstimate(
   const quality =
     qualityOptions.find((item) => item.id === qualityId) ?? qualityOptions[1];
 
-  // Fallback pricing multiplier (country x size x quality), used only when
-  // the AI did not price the project itself.
-  const multiplier = location.multiplier * size.multiplier * quality.multiplier;
-  const aiPricing = analysis.aiPricing;
-  // Only the user's chosen size and quality adjust an AI-priced project: the
-  // AI already priced it at real-world market cost for THIS location, so the
-  // location multiplier must not be applied a second time.
-  const sizeQuality = size.multiplier * quality.multiplier;
+  const physicalCard =
+    analysis.kind === "physical"
+      ? detectPhysicalRateCard(
+          `${description} ${analysis.aiProjectType ?? ""} ${
+            analysis.aiCategory ?? ""
+          } ${analysis.projectType ?? ""}`,
+        )
+      : null;
+  const projectTypeKey =
+    analysis.kind === "physical"
+      ? (physicalCard?.key ?? "physical-generic")
+      : analysis.projectTypeKey;
 
-  let items: EstimateItem[];
-  let components: EstimateResult["components"];
-  let subtotal: number;
+  const price = scalePriceToCurrency(
+    computePrice({
+      projectTypeKey,
+      kind: analysis.kind,
+      complexity: analysis.complexity,
+      features: analysis.features,
+      quantities: analysis.quantities,
+      description,
+      location,
+      size,
+      quality,
+      currency,
+      namedLocation: matchLocation(description) !== null,
+    }),
+    fx,
+  );
 
-  if (aiPricing) {
-    // REAL-WORLD PATH: the AI's own typical market cost for the location.
-    subtotal = roundMoney(aiPricing.typical * sizeQuality * fx);
-    components =
-      buildCostComponents(aiAnalysis?.components, subtotal) ??
-      buildGenericComponents(subtotal);
-    // The breakdown table and the quotation mirror the AI's component split
-    // (land, enclosures, animals, labour...) instead of preset software lines.
-    items = (components ?? []).map((component) => ({
-      name: component.name,
-      detail: component.note || "Included in the project cost",
-      quantity: 1,
-      rate: component.cost,
-    }));
-    if (items.length === 0) {
-      items = [
-        {
-          name: analysis.aiProjectType || analysis.projectType,
-          detail: "Total project cost",
-          quantity: 1,
-          rate: subtotal,
-        },
-      ];
-    }
-  } else {
-    // Fallback path: static USD config (PROJECT_TYPES / FEATURES x country,
-    // size and quality multipliers).
-    items = analysis.lines.map((line) => ({
-      name: line.label,
-      detail: line.detail,
-      quantity: 1,
-      rate: roundMoney(line.usd * multiplier * fx),
-    }));
-    subtotal = items.reduce(
-      (sum, item) => sum + item.quantity * item.rate,
-      0,
-    );
-    components =
-      buildCostComponents(aiAnalysis?.components, subtotal) ??
-      buildGenericComponents(subtotal);
-  }
-
-  const contingency = roundMoney(subtotal * 0.05);
+  const subtotal = roundMoney(price.subtotal);
+  const contingency = roundMoney(subtotal * CONTINGENCY_RATE);
   const taxes = roundMoney((subtotal + contingency) * location.taxRate);
   const total = subtotal + contingency + taxes;
 
-  // Low/typical/high: from the AI's own range when it priced the project,
-  // scaled by the same size/quality/currency/contingency/tax factors as the
-  // total so the range always brackets it. Only the fallback derives them.
-  const low = aiPricing
-    ? roundMoney(aiPricing.low * sizeQuality * fx * 1.05 * (1 + location.taxRate))
-    : roundMoney(total * 0.88);
-  const high = aiPricing
-    ? roundMoney(aiPricing.high * sizeQuality * fx * 1.05 * (1 + location.taxRate))
-    : roundMoney(total * 1.17);
-
-  // Timeline: the AI's realistic duration for the project type (months or
-  // years for physical builds) when present, else the preset weeks estimate.
-  const aiDuration = analysis.aiDuration;
-  const weekFactor = size.weekFactor * quality.weekFactor;
-  const durationMin = aiDuration
-    ? aiDuration.min
-    : Math.max(1, Math.round(analysis.weeksMin * weekFactor));
-  const durationMax = aiDuration
-    ? aiDuration.max
-    : Math.max(durationMin + 1, Math.round(analysis.weeksMax * weekFactor));
-  const durationUnit: TimelineUnit =
-    aiDuration && ["weeks", "months", "years"].includes(aiDuration.unit)
-      ? (aiDuration.unit as TimelineUnit)
-      : "weeks";
-
-  const confidence = Math.min(
-    94,
-    Math.max(20, Math.round(analysis.confidence * 100)),
-  );
-
   return {
     projectTitle: analysis.heading,
-    // The AI's own project type, shown in the subtitle instead of the preset
-    // category (e.g. "Zoo / Wildlife Park Development" instead of
-    // "Website development"). Null when the AI was unavailable.
     projectTypeLabel: analysis.aiProjectType || analysis.aiCategory || null,
     description,
-    // When the AI detects a new category not in the preset list, use a
-    // dynamic category object with the AI's label so the UI shows the
-    // detected category name instead of a mismatched preset.
     category: analysis.aiCategory
       ? ({
           ...category,
           name: analysis.aiCategory,
           shortName: analysis.aiCategory,
-          description: `AI-detected: ${analysis.aiCategory}`,
+          description: `Detected project type: ${analysis.aiCategory}`,
         } as unknown as Category)
       : category,
     location,
     size,
     quality,
-    items,
-    components,
+    items: price.items,
+    components: price.components,
     subtotal,
     contingency,
     taxes,
     total,
-    low,
-    high,
-    confidence,
-    durationMin,
-    durationMax,
-    durationUnit,
+    low: roundMoney(total * 0.88),
+    high: roundMoney(total * 1.17),
+    confidence: price.confidence,
+    durationMin: price.durationMin,
+    durationMax: price.durationMax,
+    durationUnit: price.durationUnit,
     scope: analysis.scope,
     assumptions: analysis.assumptions,
     risks: analysis.risks,
