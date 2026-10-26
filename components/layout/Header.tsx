@@ -104,7 +104,7 @@ export function Header({
             </a>
             <a
               href="#why-costcalc"
-              className="whitespace-nowrap text-sm font-medium text-[#4c4854] transition-colors hover:text-[#ea580c]"
+              className="whitespace-nowrap text-sm font-medium text-[#4c4854] transition-colors hover:text-[#d36931]"
             >
               Why CostCalc
             </a>
@@ -132,7 +132,7 @@ export function Header({
             <button
               type="button"
               onClick={onEstimateClick}
-              className="hidden md:flex items-center gap-2 text-sm font-semibold text-[#4c4854] transition-colors hover:text-[#ea580c]"
+              className="hidden md:flex items-center gap-2 rounded-lg border border-[#d1d5db] bg-[#f3f4f6] px-3 py-2 text-sm font-semibold text-[#4c4854] transition-all duration-200 hover:border-[#6b7280] hover:bg-[#e5e7eb] hover:text-[#374151]"
               aria-label="New estimate"
             >
               <Icon name="plus" className="h-4 w-4 sm:h-[18px] sm:w-[18px]" />
