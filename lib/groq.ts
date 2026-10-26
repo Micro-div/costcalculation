@@ -3,12 +3,14 @@
 //
 // The key is server-only (GROQ_API_KEY) and never leaves this module's caller.
 
-const MODEL = process.env.GROQ_MODEL || "openai/gpt-oss-120b";
 // Known-good models used only when the configured model is unavailable (for
 // example a stale GROQ_MODEL saved in a host dashboard).
 const MODEL_FALLBACKS = ["openai/gpt-oss-120b", "openai/gpt-oss-20b"];
-const MODEL_CANDIDATES = Array.from(new Set([MODEL, ...MODEL_FALLBACKS]));
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+function configuredModel(): string {
+  return process.env.GROQ_MODEL || "openai/gpt-oss-120b";
+}
 
 export interface GroqMessage {
   role: "system" | "user" | "assistant";
@@ -109,17 +111,21 @@ export async function callGroq(request: GroqRequest): Promise<GroqResult> {
     return { content: null, model: null, error: "GROQ_API_KEY missing" };
   }
 
+  const modelName = configuredModel();
+  const modelCandidates = Array.from(
+    new Set([modelName, ...MODEL_FALLBACKS]),
+  );
   let lastError: string | null = null;
-  for (const model of MODEL_CANDIDATES) {
+  for (const model of modelCandidates) {
     const { content, modelUnavailable, error } = await callModel(
       apiKey,
       model,
       request,
     );
     if (content !== null) {
-      if (model !== MODEL) {
+      if (model !== modelName) {
         console.warn(
-          `[groq] falling back to ${model} (GROQ_MODEL=${MODEL} unavailable)`,
+          `[groq] falling back to ${model} (GROQ_MODEL=${modelName} unavailable)`,
         );
       }
       return { content, model, error: null };

@@ -160,7 +160,12 @@ export async function POST(request: Request) {
     "medium",
     "standard",
     null,
-    { ...parsed, source: "ai", model: result.model },
+    {
+      ...parsed,
+      kind: parsed.kind ?? undefined,
+      source: "ai",
+      model: result.model,
+    },
   );
   const estimate = {
     ...calculated,

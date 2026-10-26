@@ -13,7 +13,7 @@ export const ALLOWED_PROJECT_TYPES = PROJECT_TYPES.map(
 );
 export const ALLOWED_FEATURES = FEATURES.map((feature) => feature.label);
 export const ALLOWED_COMPLEXITY = ["Basic", "Standard", "Advanced"];
-export const ALLOWED_KINDS = ["physical", "software", "service"];
+export const ALLOWED_KINDS = ["physical", "software", "service"] as const;
 
 export const MAX_DESCRIPTION_CHARS = 500;
 export const MAX_LOCATION_CHARS = 80;
@@ -49,7 +49,7 @@ export interface SanitizedAnalysis {
   status: "ok";
   understood: string;
   projectBrief: string;
-  kind: string | null;
+  kind: (typeof ALLOWED_KINDS)[number] | null;
   category: string;
   projectType: string;
   subject: string;
@@ -174,9 +174,7 @@ function sanitizeAnalysis(data: unknown): SanitizedAnalysis | null {
     status: "ok",
     understood: capWords(source.understood, 20, 200),
     projectBrief: capWords(source.projectBrief, 40, 300),
-    kind: ALLOWED_KINDS.includes(String(source.kind))
-      ? String(source.kind)
-      : null,
+    kind: ALLOWED_KINDS.find((kind) => kind === source.kind) ?? null,
     category,
     projectType,
     subject: capWords(source.subject, 3, 80),

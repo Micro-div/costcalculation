@@ -189,9 +189,11 @@ export function Estimator({
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-sm font-bold text-[#26232e]">
-                {stage === "describe" && "Describe your project"}
-                {stage === "questions" && "A few quick details"}
-                {stage === "complete" && "Your estimate is ready"}
+                {stage === "describe"
+                  ? needsInfo
+                    ? "A few quick details"
+                    : "Describe your project"
+                  : "Your estimate is ready"}
               </p>
               <p className="mt-0.5 text-xs text-[#85818c]">
                 Free · No account needed
