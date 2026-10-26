@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
-import { analyzeProject } from "@/lib/analyzeProject";
+import { categories, locations } from "@/constants";
+import { calculateEstimate, formatCompactCurrency } from "@/lib";
+import { saveEstimate } from "@/lib/estimateStore";
 import {
   ALLOWED_COMPLEXITY,
   ALLOWED_FEATURES,
@@ -56,31 +58,6 @@ function jsonError(error: string, status: number) {
   return NextResponse.json({ error }, { status });
 }
 
-// Rule-based extraction used when Groq is unavailable. It contains no prices
-// either — the same rule engine prices the result. The client shows an
-// explicit "AI unavailable" note when source is "fallback".
-function fallbackAnalysis(description: string) {
-  const analysis = analyzeProject(description);
-  return {
-    status: "ok" as const,
-    understood: "",
-    projectBrief: "",
-    kind: analysis.kind,
-    category: analysis.category,
-    projectType: analysis.projectType,
-    subject: analysis.subject,
-    heading: analysis.heading,
-    features: analysis.features,
-    complexity: analysis.complexity,
-    quantities: {},
-    locationHint: "",
-    assumptions: analysis.assumptions,
-    scope: analysis.scope,
-    source: "fallback" as const,
-    model: null,
-  };
-}
-
 export async function POST(request: Request) {
   const rate = await checkRateLimit(request, {
     scope: "analyze",
@@ -93,7 +70,7 @@ export async function POST(request: Request) {
 
   let description = "";
   let locationId = "";
-  let locationText = "";
+  let categoryId = "";
   try {
     const body: unknown = await request.json();
     if (typeof body !== "object" || body === null) {
@@ -103,11 +80,11 @@ export async function POST(request: Request) {
     if (typeof record.description === "string") {
       description = record.description.trim().slice(0, MAX_DESCRIPTION_CHARS);
     }
-    if (typeof record.locationId === "string") {
-      locationId = record.locationId.trim().toLowerCase().slice(0, 40);
+    if (typeof record.category === "string") {
+      categoryId = record.category.trim().slice(0, 40);
     }
     if (typeof record.location === "string") {
-      locationText = record.location;
+      locationId = record.location.trim().toLowerCase().slice(0, 40);
     }
   } catch {
     return jsonError("Invalid request body.", 400);
@@ -116,12 +93,22 @@ export async function POST(request: Request) {
   if (!description) {
     return jsonError("A project description is required.", 400);
   }
+  const category = categories.find((item) => item.id === categoryId);
+  if (!category) {
+    return jsonError("Choose a valid project category.", 400);
+  }
+  const location = locations.find((item) => item.id === locationId);
+  if (!location) {
+    return jsonError("Choose a valid project location.", 400);
+  }
 
-  // Only a real city from our list is ever forwarded to the model.
-  const knownLocation = resolveKnownLocation(locationId, locationText);
+  const knownLocation = resolveKnownLocation(location.id, "");
 
   if (!isGroqConfigured()) {
-    return NextResponse.json(fallbackAnalysis(description));
+    return jsonError(
+      "Estimate generation is unavailable right now. Please try again later.",
+      503,
+    );
   }
 
   const userMessage = [
@@ -143,7 +130,11 @@ export async function POST(request: Request) {
   });
 
   if (result.content === null) {
-    return NextResponse.json(fallbackAnalysis(description));
+    console.error("[api/analyze] model request failed:", result.error);
+    return jsonError(
+      "We couldn't generate your estimate. Please try again.",
+      502,
+    );
   }
 
   const parsed = sanitizeAiResponse(result.content);
@@ -152,17 +143,49 @@ export async function POST(request: Request) {
       "[api/analyze] invalid model output:",
       result.content.slice(0, 300),
     );
-    return NextResponse.json(fallbackAnalysis(description));
+    return jsonError(
+      "We couldn't read the estimate response. Please try again.",
+      502,
+    );
   }
 
   if (parsed.status === "needs_info") {
     return NextResponse.json(parsed);
   }
 
+  const calculated = calculateEstimate(
+    description,
+    category.id,
+    location.id,
+    "medium",
+    "standard",
+    null,
+    { ...parsed, source: "ai", model: result.model },
+  );
+  const estimate = {
+    ...calculated,
+    items: calculated.items.map((item) => {
+      const amount = Math.round(item.quantity * item.rate);
+      return {
+        ...item,
+        amount,
+        percentage: calculated.subtotal
+          ? Math.round((amount / calculated.subtotal) * 100)
+          : 0,
+      };
+    }),
+  };
+  const id = await saveEstimate(estimate);
+  if (!id) {
+    return jsonError(
+      "We couldn't save your estimate for sharing. Please try again.",
+      503,
+    );
+  }
+
   return NextResponse.json({
-    ...parsed,
-    source: "ai" as const,
-    model: result.model,
+    status: "ok",
+    estimate: { ...estimate, shareId: id },
   });
 }
 

@@ -46,7 +46,7 @@ export interface Location {
 // list can keep growing without touching every call site.
 export type LocationId = string;
 
-export type Stage = "describe" | "questions" | "complete";
+export type Stage = "describe" | "complete";
 
 // How a timeline is measured: weeks for software/services, months or years
 // for physical builds (chosen by the AI for the project type).
@@ -91,6 +91,9 @@ export interface EstimateItem {
   detail: string;
   quantity: number;
   rate: number;
+  /** Server-computed amount and share of the estimate subtotal. */
+  amount?: number;
+  percentage?: number;
 }
 
 export interface CostComponent {

@@ -7,8 +7,6 @@ import {
   countries,
   exampleProjects,
   locations,
-  projectSizes,
-  qualityOptions,
 } from "@/constants";
 import {
   formatCompactCurrency,
@@ -23,8 +21,6 @@ import type {
   IconName,
   Location,
   LocationId,
-  ProjectSizeId,
-  QualityId,
   Stage,
 } from "@/types";
 import { Icon } from "@/components/common/Icon";
@@ -36,9 +32,6 @@ export interface EstimatorProps {
   description: string;
   categoryId: CategoryId;
   locationId: LocationId;
-  sizeId: ProjectSizeId;
-  qualityId: QualityId;
-  questionStep: number;
   estimate: EstimateResult | null;
   // The AI's "needs_info" verdict (description too vague to estimate):
   // what it understood + the questions it wants answered.
@@ -47,20 +40,13 @@ export interface EstimatorProps {
   selectedCategory: Category;
   selectedLocation: Location;
   onDescriptionChange: (value: string) => void;
-  autoCategoryHint?: string | null;
-  aiCategoryLabel?: string | null;
   onCategoryChange: (id: CategoryId) => void;
   onLocationChange: (id: LocationId) => void;
-  onSizeChange: (id: ProjectSizeId) => void;
-  onQualityChange: (id: QualityId) => void;
   onSubmitDescription: (event: FormEvent<HTMLFormElement>) => void;
-  onBack: () => void;
-  onContinueQuestions: () => void;
   isGenerating: boolean;
+  estimateError: string;
+  onRetryEstimate: () => void;
   onViewEstimate: () => void;
-  onNewEstimate: () => void;
-  /** True while the AI extraction request for the submitted description is running. */
-  analyzing: boolean;
 }
 
 /* Entrance animation: desktop slides in from the right, mobile slides up from the bottom.
@@ -130,28 +116,19 @@ export function Estimator({
   description,
   categoryId,
   locationId,
-  sizeId,
-  qualityId,
-  questionStep,
   estimate,
   needsInfo,
   descriptionReady,
   selectedCategory,
   selectedLocation,
   onDescriptionChange,
-  autoCategoryHint,
-  aiCategoryLabel,
   onCategoryChange,
   onLocationChange,
-  onSizeChange,
-  onQualityChange,
   onSubmitDescription,
-  onBack,
-  onContinueQuestions,
   isGenerating,
+  estimateError,
+  onRetryEstimate,
   onViewEstimate,
-  onNewEstimate,
-  analyzing,
 }: EstimatorProps) {
   const cardRef = useRef<HTMLDivElement>(null);
   const [revealed, setRevealed] = useState(false);
@@ -327,14 +304,10 @@ export function Estimator({
                       className="pointer-events-none absolute left-3.5 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-[#6d58db]"
                     />
                     <select
-                      value={
-                        aiCategoryLabel ? `ai:${aiCategoryLabel}` : categoryId
-                      }
+                      value={categoryId}
                       onChange={(event) => {
                         const value = event.target.value;
-                        if (!value.startsWith("ai:")) {
-                          onCategoryChange(value as CategoryId);
-                        }
+                        onCategoryChange(value as CategoryId);
                       }}
                       className="h-11 w-full appearance-none rounded-xl border border-[#dedbe4] bg-white pl-10 pr-9 text-sm font-semibold text-[#403c47] outline-none transition focus:border-[#7661e8] focus:ring-4 focus:ring-[#7661e8]/10"
                     >
@@ -343,11 +316,6 @@ export function Estimator({
                           {category.shortName}
                         </option>
                       ))}
-                      {aiCategoryLabel && (
-                        <option value={`ai:${aiCategoryLabel}`}>
-                          {aiCategoryLabel}
-                        </option>
-                      )}
                     </select>
                     <Icon
                       name="chevron-down"
@@ -355,12 +323,6 @@ export function Estimator({
                     />
                   </span>
                 </label>
-                {autoCategoryHint && (
-                  <p className="mt-1.5 flex items-center gap-1 text-[11px] font-semibold text-[#6d58db]">
-                    <Icon name="sparkles" className="h-3 w-3" />
-                    Auto-detected: {autoCategoryHint}
-                  </p>
-                )}
               </div>
               <div>
                 <LocationSelect
@@ -385,10 +347,10 @@ export function Estimator({
               </button> */}
               <button
                 type="submit"
-                disabled={!descriptionReady || analyzing}
+                disabled={!descriptionReady || isGenerating}
                 className="group flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#6754e7] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_25px_rgba(103,84,231,0.25)] transition hover:bg-[#5946d3] disabled:cursor-not-allowed disabled:bg-[#c8c3d6] disabled:shadow-none"
               >
-                {analyzing ? (
+                {isGenerating ? (
                   <>
                     <svg
                       className="h-4 w-4 animate-spin"
@@ -410,7 +372,7 @@ export function Estimator({
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                       />
                     </svg>
-                    Reading your project…
+                    Generating estimate…
                   </>
                 ) : (
                   <>
@@ -425,9 +387,26 @@ export function Estimator({
             </div>
             <p className="mt-1.5 text-center text-[10px] font-medium text-[#95919c]">
               {descriptionReady
-                ? "Your description is sent to our AI provider only to extract the requirements. Estimates are calculated by our own pricing engine."
+                ? "Your estimate is generated and saved securely by our server."
                 : "Add a few details above to continue."}
             </p>
+            {estimateError && (
+              <div
+                role="alert"
+                className="mt-3 flex flex-col gap-3 rounded-xl border border-[#f0c9cf] bg-[#fff5f6] p-3 text-sm text-[#8a2432] sm:flex-row sm:items-center sm:justify-between"
+              >
+                <p>{estimateError}</p>
+                <button
+                  type="button"
+                  onClick={onRetryEstimate}
+                  disabled={isGenerating}
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#d9aab1] bg-white px-3 text-xs font-bold text-[#8a2432] transition hover:bg-[#ffebee] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <Icon name="rotate" className="h-3.5 w-3.5" />
+                  Retry
+                </button>
+              </div>
+            )}
           </form>
         )}
 
@@ -457,157 +436,8 @@ export function Estimator({
                 ))}
               </ul>
               <p className="mt-1.5 text-[11px] leading-4 text-[#9a95a0]">
-                Answer these above — size, location and key features are what
-                we need for an instant estimate.
+                Add those details to your description, then submit it again.
               </p>
-            </div>
-          </div>
-        )}
-
-        {stage === "questions" && (
-          <div className="rounded-[20px] border border-[#e8e5ed] bg-[#fcfbfd] p-4 sm:p-6">
-            <div className="flex items-center justify-between">
-              <span className="rounded-full bg-[#ede9ff] px-3 py-1 text-[11px] font-bold text-[#6652cc]">
-                Quick question {questionStep + 1} of 2
-              </span>
-              <span className="text-xs font-medium text-[#8a8691]">
-                {selectedCategory.shortName} ·{" "}
-                {selectedLocation.city}
-              </span>
-            </div>
-
-            {questionStep === 0 ? (
-              <div className="mt-5">
-                <h2 className="text-xl font-bold tracking-[-0.035em] text-[#24212b]">
-                  How large is your project?
-                </h2>
-                <p className="mt-1.5 text-sm leading-6 text-[#797581]">
-                  This helps us estimate the team, time and overall investment.
-                </p>
-                <div className="mt-5 grid gap-2.5">
-                  {projectSizes.map((size) => (
-                    <button
-                      key={size.id}
-                      type="button"
-                      onClick={() => onSizeChange(size.id)}
-                      className={`flex items-center gap-3 rounded-2xl border p-3.5 text-left transition sm:p-4 ${
-                        sizeId === size.id
-                          ? "border-[#7460e4] bg-[#f4f1ff] shadow-[0_0_0_3px_rgba(116,96,228,0.08)]"
-                          : "border-[#e3e0e7] bg-white hover:border-[#c9c3e8] hover:bg-[#fbfaff]"
-                      }`}
-                    >
-                      <span
-                        className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
-                          sizeId === size.id
-                            ? "bg-[#6d58df] text-white"
-                            : "bg-[#f0eef3] text-[#77727f]"
-                        }`}
-                      >
-                        {sizeId === size.id ? (
-                          <Icon name="check" className="h-4 w-4" />
-                        ) : (
-                          <Icon name="layers" className="h-4 w-4" />
-                        )}
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-bold text-[#37333f]">
-                          {size.name}
-                        </span>
-                        <span className="mt-0.5 block text-xs leading-5 text-[#817d88]">
-                          {size.example}
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="mt-5">
-                <h2 className="text-xl font-bold tracking-[-0.035em] text-[#24212b]">
-                  What level of quality do you need?
-                </h2>
-                <p className="mt-1.5 text-sm leading-6 text-[#797581]">
-                  Pick the option that feels closest to your expectations.
-                </p>
-                <div className="mt-5 grid gap-2.5">
-                  {qualityOptions.map((quality) => (
-                    <button
-                      key={quality.id}
-                      type="button"
-                      onClick={() => onQualityChange(quality.id)}
-                      className={`flex items-center gap-3 rounded-2xl border p-3.5 text-left transition sm:p-4 ${
-                        qualityId === quality.id
-                          ? "border-[#7460e4] bg-[#f4f1ff] shadow-[0_0_0_3px_rgba(116,96,228,0.08)]"
-                          : "border-[#e3e0e7] bg-white hover:border-[#c9c3e8] hover:bg-[#fbfaff]"
-                      }`}
-                    >
-                      <span
-                        className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
-                          qualityId === quality.id
-                            ? "bg-[#6d58df] text-white"
-                            : "bg-[#f0eef3] text-[#77727f]"
-                        }`}
-                      >
-                        <Icon name="sparkles" className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm font-bold text-[#37333f]">
-                          {quality.name}
-                        </span>
-                        <span className="mt-0.5 block text-xs leading-5 text-[#817d88]">
-                          {quality.description}
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="mt-5 flex gap-3">
-              <button
-                type="button"
-                onClick={onBack}
-                className="rounded-xl border border-[#ddd9e3] bg-white px-4 py-3 text-sm font-bold text-[#5c5864] transition hover:bg-[#f7f6f8]"
-              >
-                Back
-              </button>
-              <button
-                type="button"
-                onClick={onContinueQuestions}
-                disabled={isGenerating}
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#6754e7] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_25px_rgba(103,84,231,0.22)] transition hover:bg-[#5946d3] disabled:cursor-not-allowed disabled:opacity-80"
-              >
-                {isGenerating ? (
-                  <>
-                    <svg
-                      className="h-4 w-4 animate-spin"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      />
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-                      />
-                    </svg>
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    {questionStep === 0 ? "Continue" : "Generate my estimate"}
-                    <Icon name="arrow-right" className="h-4 w-4" />
-                  </>
-                )}
-              </button>
             </div>
           </div>
         )}

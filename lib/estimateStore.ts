@@ -44,6 +44,7 @@ async function upstash(command: Array<string | number>): Promise<unknown> {
     },
     body: JSON.stringify(command),
     cache: "no-store",
+    signal: AbortSignal.timeout(5_000),
   });
   if (!res.ok) throw new Error(`Upstash responded ${res.status}`);
   const data = (await res.json()) as { result?: unknown };
@@ -154,6 +155,7 @@ export async function saveEstimate(
         "[estimateStore] Upstash write failed:",
         error instanceof Error ? error.message : String(error),
       );
+      return null;
     }
   }
 

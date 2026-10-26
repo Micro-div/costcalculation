@@ -84,38 +84,19 @@ export function HomeExperience({
               description={studio.description}
               categoryId={studio.categoryId}
               locationId={studio.locationId}
-              sizeId={studio.sizeId}
-              qualityId={studio.qualityId}
-              questionStep={studio.questionStep}
               estimate={studio.estimate}
               needsInfo={studio.needsInfo}
               descriptionReady={studio.descriptionReady}
               selectedCategory={studio.selectedCategory}
               selectedLocation={studio.selectedLocation}
               onDescriptionChange={studio.changeDescription}
-              autoCategoryHint={
-                studio.categoryManual ? null : studio.autoCategory
-              }
-              aiCategoryLabel={
-                studio.categoryManual ? null : studio.aiCategoryLabel
-              }
               onCategoryChange={studio.changeCategory}
               onLocationChange={studio.changeLocation}
-              onSizeChange={studio.setSizeId}
-              onQualityChange={studio.setQualityId}
               onSubmitDescription={studio.beginEstimate}
-              onBack={() => {
-                if (studio.questionStep === 0) {
-                  studio.setStage("describe");
-                } else {
-                  studio.setQuestionStep(0);
-                }
-              }}
-              onContinueQuestions={studio.continueQuestions}
               isGenerating={studio.isGenerating}
-              analyzing={studio.analyzing}
+              estimateError={studio.estimateError}
+              onRetryEstimate={studio.retryEstimate}
               onViewEstimate={() => scrollToSection("estimate-result")}
-              onNewEstimate={studio.resetEstimate}
             />
           }
         />

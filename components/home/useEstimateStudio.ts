@@ -4,22 +4,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { categories, locations } from "@/constants";
 import {
-  calculateEstimate,
   detectLocation,
-  locationLabel,
   scrollToSection,
 } from "@/lib";
-import { fetchAiAnalysis } from "@/lib/aiAnalysis";
-import { analyzeProjectWithAi } from "@/lib/analyzeProject";
 import type {
   CategoryId,
-  CurrencyCode,
   EstimateItem,
   EstimateResult,
   HistoryEntry,
   LocationId,
-  ProjectSizeId,
-  QualityId,
   SavedDraftData,
   ScopeItem,
 } from "@/types";
@@ -33,6 +26,32 @@ const isEstimateData = (data: unknown): data is EstimateResult =>
   typeof data === "object" &&
   data !== null &&
   typeof (data as { projectTitle?: unknown }).projectTitle === "string";
+
+function isEstimateApiResponse(value: unknown): value is {
+  status: "ok";
+  estimate: EstimateResult;
+} {
+  if (typeof value !== "object" || value === null) return false;
+  const response = value as Record<string, unknown>;
+  if (response.status !== "ok" || !isEstimateData(response.estimate)) {
+    return false;
+  }
+  const estimate = response.estimate as EstimateResult;
+  return (
+    typeof estimate.shareId === "string" &&
+    SHARE_ID_PATTERN.test(estimate.shareId) &&
+    typeof estimate.description === "string" &&
+    typeof estimate.total === "number" &&
+    Number.isFinite(estimate.total) &&
+    typeof estimate.low === "number" &&
+    typeof estimate.high === "number" &&
+    typeof estimate.confidence === "number" &&
+    typeof estimate.durationMin === "number" &&
+    typeof estimate.durationMax === "number" &&
+    Array.isArray(estimate.items) &&
+    typeof estimate.location?.currency === "string"
+  );
+}
 
 const isSavedDraft = (data: unknown): data is SavedDraftData =>
   typeof data === "object" &&
@@ -115,12 +134,7 @@ export function useEstimateStudio() {
   const [locationId, setLocationId] = useState<LocationId>("us");
   const [locationSelectedManually, setLocationSelectedManually] =
     useState(false);
-  const [sizeId, setSizeId] = useState<ProjectSizeId>("medium");
-  const [qualityId, setQualityId] = useState<QualityId>("standard");
-  const [questionStep, setQuestionStep] = useState(0);
-  const [stage, setStage] = useState<"describe" | "questions" | "complete">(
-    "describe",
-  );
+  const [stage, setStage] = useState<"describe" | "complete">("describe");
   const [estimate, setEstimate] = useState<EstimateResult | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteEstimate, setQuoteEstimate] = useState<EstimateResult | null>(
@@ -129,18 +143,12 @@ export function useEstimateStudio() {
   const [shareOpen, setShareOpen] = useState(false);
   const [quoteItems, setQuoteItems] = useState<EstimateItem[]>([]);
   const [toast, setToast] = useState("");
-  const [currencyOverride, setCurrencyOverride] = useState<CurrencyCode | null>(
-    null,
-  );
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null);
-  const [analyzing, setAnalyzing] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [estimateError, setEstimateError] = useState("");
   const [errorToast, setErrorToast] = useState("");
   const [shareError, setShareError] = useState("");
-  const [categoryManual, setCategoryManual] = useState(false);
-  const [autoCategory, setAutoCategory] = useState<string | null>(null);
-  const [aiCategoryLabel, setAiCategoryLabel] = useState<string | null>(null);
   const [needsInfo, setNeedsInfo] = useState<{
     understood: string;
     questions: string[];
@@ -223,11 +231,8 @@ export function useEstimateStudio() {
         setDescription(stored.description);
         setCategoryId(stored.category.id as CategoryId);
         setLocationId(stored.location.id);
-        setSizeId(stored.size.id as ProjectSizeId);
-        setQualityId(stored.quality.id as QualityId);
         setEstimate({ ...stored, shareId: id });
         setStage("complete");
-        setQuestionStep(0);
         window.setTimeout(() => scrollToSection("estimate-result"), 150);
       } catch {
         if (!cancelled) {
@@ -248,156 +253,105 @@ export function useEstimateStudio() {
   // Abort any in-flight extraction on unmount.
   useEffect(() => () => analyzeAbortRef.current?.abort(), []);
 
-  const runExtraction = async (
-    text: string,
-    targetLocationId: LocationId,
-    signal: AbortSignal,
-  ) => {
-    const ai = await fetchAiAnalysis(
-      text,
-      targetLocationId,
-      locationLabel(targetLocationId),
-      signal,
-    );
-    if (signal.aborted) return null;
-    return ai && ai.status !== "needs_info" ? ai : null;
-  };
-
-  // Saves the exact computed estimate server-side. Share links only carry the
-  // returned id; the full estimate (including its totals) is loaded back.
-  const persistEstimate = async (
-    result: EstimateResult,
-  ): Promise<string | null> => {
-    try {
-      const res = await fetch("/api/share", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estimate: result }),
-      });
-      if (!res.ok) return null;
-      const data: unknown = await res.json();
-      const id =
-        typeof data === "object" && data !== null
-          ? (data as { id?: unknown }).id
-          : undefined;
-      return typeof id === "string" && SHARE_ID_PATTERN.test(id) ? id : null;
-    } catch {
-      return null;
-    }
-  };
-
-  // Computes the estimate with the rule engine, then stores it server-side.
-  // The AI only supplies the extracted requirements.
   const generateEstimate = async (
     text: string,
+    targetCategoryId: CategoryId,
     targetLocationId: LocationId,
-    aiAnalysis: Awaited<ReturnType<typeof runExtraction>>,
-  ): Promise<EstimateResult> => {
-    const refined = analyzeProjectWithAi(text, aiAnalysis);
-    const detectedCategory = refined.categoryId as CategoryId;
-    setCategoryId(detectedCategory);
-    setAutoCategory(refined.aiCategory ?? refined.category);
-    setAiCategoryLabel(refined.aiCategory ?? null);
-
-    const result = calculateEstimate(
-      text,
-      detectedCategory,
-      targetLocationId,
-      sizeId,
-      qualityId,
-      currencyOverride,
-      aiAnalysis,
-    );
-    const shareId = await persistEstimate(result);
-    return shareId ? { ...result, shareId } : result;
-  };
-
-  const beginEstimate = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const text = description.trim();
-    if (text.length < 12 || analyzing) return;
-
+  ) => {
+    if (isGenerating) return;
     analyzeAbortRef.current?.abort();
     const controller = new AbortController();
     analyzeAbortRef.current = controller;
-
-    const selectedLocationId = locationSelectedManually
-      ? locationId
-      : detectLocation(text);
-
-    setAnalyzing(true);
-    setNeedsInfo(null);
-    setShareError("");
-    try {
-      const aiAnalysis = await runExtraction(
-        text,
-        selectedLocationId,
-        controller.signal,
-      );
-      if (controller.signal.aborted) return;
-
-      if (!aiAnalysis) {
-        // No usable extraction (offline / needs_info): the deterministic rule
-        // extractor still produces a project. The result is labelled fallback.
-        const refined = analyzeProjectWithAi(text, null);
-        setCategoryId(refined.categoryId as CategoryId);
-        setAutoCategory(refined.category);
-        setAiCategoryLabel(null);
-      } else {
-        const refined = analyzeProjectWithAi(text, aiAnalysis);
-        setCategoryId(refined.categoryId as CategoryId);
-        setAutoCategory(refined.aiCategory ?? refined.category);
-        setAiCategoryLabel(refined.aiCategory ?? null);
-      }
-
-      setLocationId(selectedLocationId);
-      setQuestionStep(0);
-      setStage("questions");
-      setLoadedDraftId(null);
-      window.setTimeout(() => scrollToSection("estimator"), 30);
-    } catch {
-      notifyError("Could not analyse the description. Please try again.");
-    } finally {
-      if (!controller.signal.aborted) setAnalyzing(false);
-    }
-  };
-
-  const continueQuestions = async () => {
-    if (questionStep === 0) {
-      setQuestionStep(1);
-      return;
-    }
-
-    const text = description.trim();
-    if (!text || isGenerating) return;
-
-    analyzeAbortRef.current?.abort();
-    const controller = new AbortController();
-    analyzeAbortRef.current = controller;
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 30_000);
 
     setIsGenerating(true);
+    setEstimateError("");
+    setNeedsInfo(null);
+    setShareError("");
+    setLocationId(targetLocationId);
     try {
-      const aiAnalysis = await runExtraction(
-        text,
-        locationId,
-        controller.signal,
-      );
-      if (controller.signal.aborted) return;
-      const result = await generateEstimate(text, locationId, aiAnalysis);
-      if (controller.signal.aborted) return;
-      setEstimate(result);
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: text,
+          category: targetCategoryId,
+          location: targetLocationId,
+        }),
+        signal: controller.signal,
+      });
+      const data: unknown = await response.json();
+      if (!response.ok) {
+        const message =
+          typeof data === "object" &&
+          data !== null &&
+          typeof (data as { error?: unknown }).error === "string"
+            ? (data as { error: string }).error
+            : "We couldn't generate your estimate. Please try again.";
+        throw new Error(message);
+      }
+      if (
+        typeof data === "object" &&
+        data !== null &&
+        (data as { status?: unknown }).status === "needs_info" &&
+        typeof (data as { understood?: unknown }).understood === "string" &&
+        Array.isArray((data as { questions?: unknown }).questions)
+      ) {
+        const needsInfoData = data as {
+          understood: string;
+          questions: string[];
+        };
+        setNeedsInfo({
+          understood: needsInfoData.understood,
+          questions: needsInfoData.questions.filter(
+            (question): question is string => typeof question === "string",
+          ),
+        });
+        return;
+      }
+      if (!isEstimateApiResponse(data)) {
+        throw new Error("The estimate service returned an invalid response.");
+      }
+      setEstimate(data.estimate);
       setStage("complete");
       setLoadedDraftId(null);
       window.setTimeout(() => scrollToSection("estimate-result"), 80);
-    } catch {
-      notifyError("Could not generate the estimate. Please try again.");
+    } catch (error) {
+      if (controller.signal.aborted && !timedOut) return;
+      setEstimateError(
+        timedOut
+          ? "Estimate generation timed out. Please retry."
+          : error instanceof Error
+            ? error.message
+            : "We couldn't generate your estimate. Please retry.",
+      );
     } finally {
-      if (!controller.signal.aborted) setIsGenerating(false);
+      window.clearTimeout(timeout);
+      if (!controller.signal.aborted || timedOut) setIsGenerating(false);
     }
   };
 
-  // Builds an estimate straight from the chatbot. It awaits the real AI
-  // extraction (no fixed delay) and falls back explicitly when unavailable.
+  const beginEstimate = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const text = description.trim();
+    if (text.length < 12) return;
+    const selectedLocationId = locationSelectedManually
+      ? locationId
+      : detectLocation(text);
+    void generateEstimate(text, categoryId, selectedLocationId);
+  };
+
+  const retryEstimate = () => {
+    const text = description.trim();
+    if (text.length >= 12) {
+      void generateEstimate(text, categoryId, locationId);
+    }
+  };
+
   const createEstimateFromChat = async (
     text: string,
     chosenLocationId?: LocationId,
@@ -412,29 +366,9 @@ export function useEstimateStudio() {
     const loc =
       locations.find((item) => item.id === resolvedLocationId) ?? locations[0];
 
-    analyzeAbortRef.current?.abort();
-    const controller = new AbortController();
-    analyzeAbortRef.current = controller;
-
     setLocationId(loc.id);
     setLocationSelectedManually(true);
-    setCategoryManual(false);
-    setIsGenerating(true);
-
-    try {
-      const aiAnalysis = await runExtraction(clean, loc.id, controller.signal);
-      if (controller.signal.aborted) return;
-      const result = await generateEstimate(clean, loc.id, aiAnalysis);
-      if (controller.signal.aborted) return;
-      setEstimate(result);
-      setStage("complete");
-      setLoadedDraftId(null);
-      window.setTimeout(() => scrollToSection("estimate-result"), 120);
-    } catch {
-      notifyError("Could not create the estimate. Please try again.");
-    } finally {
-      if (!controller.signal.aborted) setIsGenerating(false);
-    }
+    await generateEstimate(clean, categoryId, loc.id);
   };
 
   const resetEstimate = () => {
@@ -442,17 +376,12 @@ export function useEstimateStudio() {
     analyzeAbortRef.current = null;
     window.history.replaceState(null, "", window.location.pathname);
     setDescription("");
-    setCategoryManual(false);
-    setAutoCategory(null);
-    setAiCategoryLabel(null);
     setCategoryId("web");
     setLocationId("us");
     setLocationSelectedManually(false);
-    setSizeId("medium");
-    setQualityId("standard");
-    setQuestionStep(0);
     setStage("describe");
     setEstimate(null);
+    setEstimateError("");
     setNeedsInfo(null);
     setLoadedDraftId(null);
     setShareError("");
@@ -460,7 +389,6 @@ export function useEstimateStudio() {
     setQuoteItems([]);
     setQuoteOpen(false);
     setShareOpen(false);
-    setAnalyzing(false);
     setIsGenerating(false);
     window.setTimeout(() => scrollToSection("estimator"), 50);
   };
@@ -470,9 +398,6 @@ export function useEstimateStudio() {
       const category =
         categories.find((item) => item.id === id) ?? categories[0];
       setCategoryId(id);
-      setCategoryManual(true);
-      setAutoCategory(null);
-      setAiCategoryLabel(null);
       setStage("describe");
       setLoadedDraftId(null);
       setNeedsInfo(null);
@@ -508,19 +433,18 @@ export function useEstimateStudio() {
   const changeDescription = (value: string) => {
     setDescription(value);
     setNeedsInfo(null);
+    setEstimateError("");
   };
 
   const changeCategory = (id: CategoryId) => {
     setCategoryId(id);
-    setCategoryManual(true);
-    setAutoCategory(null);
-    setAiCategoryLabel(null);
+    setEstimateError("");
   };
 
   const changeLocation = (id: LocationId) => {
     setLocationId(id);
     setLocationSelectedManually(true);
-    setCurrencyOverride(null);
+    setEstimateError("");
   };
 
   const closeQuote = () => {
@@ -548,14 +472,11 @@ export function useEstimateStudio() {
 
   const shareEstimate = async () => {
     if (!estimate) return;
-    let id = estimate.shareId;
-    if (!id) {
-      id = (await persistEstimate(estimate)) ?? undefined;
-      if (!id) {
-        notifyError("Could not create a share link. Please try again.");
-        return;
-      }
-      setEstimate({ ...estimate, shareId: id });
+    if (!estimate.shareId) {
+      notifyError(
+        "This saved estimate has no server share ID. Generate it again to share.",
+      );
+      return;
     }
     setShareOpen(true);
   };
@@ -738,8 +659,6 @@ export function useEstimateStudio() {
       setDescription(est.description);
       setCategoryId(est.category.id as CategoryId);
       setLocationId(est.location.id);
-      setSizeId(est.size.id as ProjectSizeId);
-      setQualityId(est.quality.id as QualityId);
       setEstimate(est);
       setStage("complete");
       setLoadedDraftId(null);
@@ -791,16 +710,13 @@ export function useEstimateStudio() {
     }
   };
 
-  const activeStep = stage === "describe" ? 0 : stage === "questions" ? 1 : 2;
+  const activeStep = stage === "describe" ? 0 : 2;
   const descriptionReady = description.trim().length >= 12;
 
   return {
     description,
     categoryId,
     locationId,
-    sizeId,
-    qualityId,
-    questionStep,
     stage,
     estimate,
     quoteOpen,
@@ -813,12 +729,9 @@ export function useEstimateStudio() {
     shareError,
     history,
     loadedDraftId,
-    analyzing,
     isGenerating,
-    autoCategory,
-    aiCategoryLabel,
+    estimateError,
     needsInfo,
-    categoryManual,
     selectedCategory,
     selectedLocation,
     activeStep,
@@ -827,16 +740,13 @@ export function useEstimateStudio() {
     changeCategory,
     changeLocation,
     closeQuote,
-    setSizeId,
-    setQualityId,
-    setQuestionStep,
     setStage,
     setQuoteOpen,
     setQuoteEstimate,
     setShareOpen,
     notify,
     beginEstimate,
-    continueQuestions,
+    retryEstimate,
     createEstimateFromChat,
     resetEstimate,
     chooseCategory,
