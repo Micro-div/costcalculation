@@ -7,7 +7,13 @@ import type { Category } from "@/types";
  * A service card that asks the estimator to prefill this category. Uses a DOM
  * event so the surrounding section can stay a server component.
  */
-export function ServiceCard({ category }: { category: Category }) {
+export function ServiceCard({
+  category,
+  range,
+}: {
+  category: Category;
+  range: string;
+}) {
   const choose = () => {
     window.dispatchEvent(
       new CustomEvent("costcalc:choose-category", {
@@ -38,7 +44,7 @@ export function ServiceCard({ category }: { category: Category }) {
         {category.description}
       </p>
       <p className="mt-4 text-xs font-bold text-[#6a55d6]">
-        Typical range {category.range}
+        Typical range {range}
       </p>
     </button>
   );

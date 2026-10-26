@@ -274,6 +274,22 @@ export function calculateEstimate(
   };
 }
 
+export function getCategoryRanges(location: Location) {
+  return categories.map((category) => {
+    const estimate = calculateEstimate(
+      category.example,
+      category.id,
+      location.id,
+      "medium",
+      "standard",
+    );
+    return {
+      id: category.id,
+      range: `${formatCompactCurrency(estimate.low, estimate.location)} – ${formatCompactCurrency(estimate.high, estimate.location)}`,
+    };
+  });
+}
+
 export function scrollToSection(id: string) {
   document
     .getElementById(id)

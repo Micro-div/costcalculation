@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { categories, locations } from "@/constants";
-import { calculateEstimate, formatCompactCurrency } from "@/lib";
+import { getCategoryRanges } from "@/lib";
 
 export const dynamic = "force-dynamic";
 
@@ -14,21 +14,7 @@ export async function GET() {
     );
   }
 
-  const ranges = categories.map((category) => {
-    const estimate = calculateEstimate(
-      category.example,
-      category.id,
-      location.id,
-      "medium",
-      "standard",
-    );
-    return {
-      id: category.id,
-      range: `${formatCompactCurrency(estimate.low, estimate.location)} – ${formatCompactCurrency(estimate.high, estimate.location)}`,
-    };
-  });
-
-  return NextResponse.json({ categories: ranges });
+  return NextResponse.json({ categories: getCategoryRanges(location) });
 }
 
 export async function POST() {

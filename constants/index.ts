@@ -16,7 +16,6 @@ export const categories = [
     base: 5200,
     hours: 190,
     weeks: 5,
-    range: "$3k – $12k",
     example:
       "I need a responsive business website with a modern design, contact form and basic SEO.",
   },
@@ -29,7 +28,6 @@ export const categories = [
     base: 9800,
     hours: 340,
     weeks: 8,
-    range: "$7k – $28k",
     example:
       "I need a cross-platform fitness app with user profiles, subscriptions and progress tracking.",
   },
@@ -42,7 +40,6 @@ export const categories = [
     base: 7200,
     hours: 245,
     weeks: 6,
-    range: "$5k – $17k",
     example:
       "I need an ecommerce website for a clothing brand with online payments, customer accounts and about 500 products.",
   },
@@ -55,7 +52,6 @@ export const categories = [
     base: 3400,
     hours: 115,
     weeks: 3,
-    range: "$2k – $8k",
     example:
       "I need a complete UI and UX design for a budgeting mobile app, including research and a clickable prototype.",
   },
@@ -68,7 +64,6 @@ export const categories = [
     base: 2100,
     hours: 70,
     weeks: 3,
-    range: "$1.2k – $5k",
     example:
       "I need technical SEO and a three-month content plan to improve organic traffic for my SaaS website.",
   },
@@ -81,7 +76,6 @@ export const categories = [
     base: 2300,
     hours: 80,
     weeks: 4,
-    range: "$1.5k – $6k",
     example:
       "I need social media management for a small fashion brand, with 12 posts per month and monthly reports.",
   },
@@ -94,7 +88,6 @@ export const categories = [
     base: 3600,
     hours: 105,
     weeks: 4,
-    range: "$1.8k – $8k",
     example:
       "I need a complete visual identity for a new coffee brand, including logo, color palette and brand guide.",
   },
@@ -107,7 +100,6 @@ export const categories = [
     base: 10500,
     hours: 330,
     weeks: 8,
-    range: "$8k – $32k",
     example:
       "I need an AI customer support assistant that connects to our knowledge base and Shopify store.",
   },

@@ -1,8 +1,17 @@
-import { categories } from "@/constants";
+import { categories, locations } from "@/constants";
 import { Reveal } from "@/components/common/Reveal";
+import { getCategoryRanges } from "@/lib";
 import { ServiceCard } from "./ServiceCard";
 
 export function ServicesSection() {
+  const location = locations.find((item) => item.id === "us");
+  if (!location) {
+    throw new Error("Default pricing location is missing.");
+  }
+  const categoryRanges = new Map(
+    getCategoryRanges(location).map(({ id, range }) => [id, range]),
+  );
+
   return (
     <section
       id="services"
@@ -30,11 +39,17 @@ export function ServicesSection() {
           </Reveal>
         </div>
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {categories.map((category, i) => (
-            <Reveal key={category.id} delay={i * 120}>
-              <ServiceCard category={category} />
-            </Reveal>
-          ))}
+          {categories.map((category, i) => {
+            const range = categoryRanges.get(category.id);
+            if (!range) {
+              throw new Error(`Missing calculated range for ${category.id}.`);
+            }
+            return (
+              <Reveal key={category.id} delay={i * 120}>
+                <ServiceCard category={category} range={range} />
+              </Reveal>
+            );
+          })}
         </div>
       </div>
     </section>

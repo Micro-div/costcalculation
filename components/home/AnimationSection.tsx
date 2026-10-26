@@ -48,24 +48,6 @@ const animationFeatures: AnimationFeature[] = [
     bgColor: "bg-[#eaf2ff]",
     animationType: "scale",
   },
-  {
-    id: 5,
-    icon: "users",
-    title: "Team Collaboration",
-    description: "Share estimates with stakeholders. Collect feedback, track changes, and approve together in real-time.",
-    color: "text-[#bf6d8b]",
-    bgColor: "bg-[#fdeef3]",
-    animationType: "slide",
-  },
-  {
-    id: 6,
-    icon: "trending",
-    title: "Smart Analytics",
-    description: "Track estimate accuracy over time. Learn from past projects to improve future predictions.",
-    color: "text-[#6954df]",
-    bgColor: "bg-[#f0edff]",
-    animationType: "glow",
-  },
 ];
 
 const animationStyles = `

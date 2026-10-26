@@ -19,7 +19,7 @@ export function ShareButton() {
   );
 
   const share = async () => {
-    const url = window.location.href.split("#")[0];
+    const url = window.location.origin;
 
     if (typeof navigator.share === "function") {
       try {

@@ -16,6 +16,7 @@ export const metadata: Metadata = {
     description:
       "Get a clear, localized cost estimate and professional quotation for your next project.",
     type: "website",
+    images: [{ url: "/logo.png" }],
   },
 };
 
