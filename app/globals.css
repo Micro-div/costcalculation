@@ -100,6 +100,29 @@ select {
   isolation: isolate;
 }
 
+/* Each estimator step (describe -> size -> quality -> estimate) fades in
+   instead of swapping abruptly. */
+@keyframes estimatorStepIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.estimator-step {
+  animation: estimatorStepIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .estimator-step {
+    animation: none;
+  }
+}
+
 .estimator-card::after {
   position: absolute;
   z-index: -1;
@@ -234,6 +257,112 @@ input[type="number"] {
   @page {
     size: A4;
     margin: 12mm;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Word-cycle loading screen
+   -------------------------------------------------------------------------- */
+
+.loader-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  background: #ffffff;
+}
+
+.loader-fade-wrapper {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.loader-fade-wrapper--fading {
+  pointer-events: none;
+  opacity: 0;
+}
+
+.loader {
+  --bg-color: #ffffff;
+  display: flex;
+  box-sizing: content-box;
+  height: 40px;
+  padding: 10px;
+  color: rgb(124, 124, 124);
+  font-family: Poppins, sans-serif;
+  font-size: 25px;
+  font-weight: 500;
+  border-radius: 8px;
+}
+
+.loader-words {
+  position: relative;
+  overflow: hidden;
+}
+
+.loader-words::after {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  content: "";
+  background: linear-gradient(
+    var(--bg-color) 10%,
+    transparent 30%,
+    transparent 70%,
+    var(--bg-color) 90%
+  );
+}
+
+.loader-word {
+  display: block;
+  height: 100%;
+  padding-left: 6px;
+  color: #956afa;
+  animation: loaderWordSpin 4s infinite;
+}
+
+@keyframes loaderWordSpin {
+  10% {
+    transform: translateY(-102%);
+  }
+  25% {
+    transform: translateY(-100%);
+  }
+  35% {
+    transform: translateY(-202%);
+  }
+  50% {
+    transform: translateY(-200%);
+  }
+  60% {
+    transform: translateY(-302%);
+  }
+  75% {
+    transform: translateY(-300%);
+  }
+  85% {
+    transform: translateY(-402%);
+  }
+  100% {
+    transform: translateY(-400%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-fade-wrapper {
+    transition: none;
+  }
+
+  .loader-word {
+    animation: none;
   }
 }
 

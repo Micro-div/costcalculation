@@ -178,7 +178,7 @@ export function useEstimateStudio() {
   const [qualityId, setQualityId] = useState<QualityId>("standard");
   const [preparedAnalysis, setPreparedAnalysis] =
     useState<SanitizedAnalysis | null>(null);
-  const [detailsPrepared, setDetailsPrepared] = useState(false);
+  const [questionStep, setQuestionStep] = useState(0);
   const [estimate, setEstimate] = useState<EstimateResult | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteEstimate, setQuoteEstimate] = useState<EstimateResult | null>(
@@ -321,7 +321,6 @@ export function useEstimateStudio() {
     setNeedsInfo(null);
     setShareError("");
     setEstimate(null);
-    setDetailsPrepared(false);
     setLocationId(targetLocationId);
     try {
       const response = await fetch("/api/analyze", {
@@ -363,8 +362,8 @@ export function useEstimateStudio() {
           ),
         });
         setPreparedAnalysis(null);
-        setDetailsPrepared(false);
         setStage("describe");
+        setQuestionStep(0);
         return;
       }
       const responseBody =
@@ -389,12 +388,12 @@ export function useEstimateStudio() {
         }
       }
       setStage("details");
-      setDetailsPrepared(true);
+      setQuestionStep(0);
     } catch (error) {
       if (controller.signal.aborted && !timedOut) return;
       setPreparedAnalysis(null);
       setStage("details");
-      setDetailsPrepared(true);
+      setQuestionStep(0);
       setEstimateError(
         `${timedOut ? "Project analysis timed out." : error instanceof Error ? error.message : "Project analysis failed."} You can confirm your details and retry with the estimate.`,
       );
@@ -470,6 +469,7 @@ export function useEstimateStudio() {
           ),
         });
         setStage("describe");
+        setQuestionStep(0);
         return;
       }
       if (!isEstimateApiResponse(data)) {
@@ -498,15 +498,17 @@ export function useEstimateStudio() {
     event.preventDefault();
     const text = description.trim();
     if (text.length < 12) return;
-    if (detailsPrepared) {
-      setEstimateError("");
-      setStage("details");
-      return;
+    // Show the first question immediately instead of waiting on a network
+    // round-trip; the AI analysis runs when the estimate is generated.
+    analyzeAbortRef.current?.abort();
+    analyzeAbortRef.current = null;
+    if (!locationSelectedManually) {
+      setLocationId(detectLocation(text));
     }
-    const selectedLocationId = locationSelectedManually
-      ? locationId
-      : detectLocation(text);
-    void prepareDetails(text, categoryId, selectedLocationId);
+    setEstimateError("");
+    setNeedsInfo(null);
+    setQuestionStep(0);
+    setStage("details");
   };
 
   const retryEstimate = () => {
@@ -522,8 +524,11 @@ export function useEstimateStudio() {
     }
   };
 
-  const confirmDetails = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const continueQuestions = () => {
+    if (questionStep === 0) {
+      setQuestionStep(1);
+      return;
+    }
     const text = description.trim();
     if (text.length < 12) return;
     void generateEstimate(
@@ -535,8 +540,12 @@ export function useEstimateStudio() {
     );
   };
 
-  const backToDescription = () => {
+  const backQuestion = () => {
     if (isGenerating) return;
+    if (questionStep > 0) {
+      setQuestionStep((step) => step - 1);
+      return;
+    }
     setEstimateError("");
     setStage("describe");
   };
@@ -573,7 +582,7 @@ export function useEstimateStudio() {
     setSizeId("medium");
     setQualityId("standard");
     setPreparedAnalysis(null);
-    setDetailsPrepared(false);
+    setQuestionStep(0);
     setEstimate(null);
     setEstimateError("");
     setNeedsInfo(null);
@@ -597,7 +606,7 @@ export function useEstimateStudio() {
       setLoadedDraftId(null);
       setNeedsInfo(null);
       setPreparedAnalysis(null);
-      setDetailsPrepared(false);
+      setQuestionStep(0);
       setEstimate(null);
       if (!description.trim()) setDescription(category.example);
       window.setTimeout(() => scrollToSection("estimator"), 30);
@@ -636,7 +645,6 @@ export function useEstimateStudio() {
     setDescription(value);
     setNeedsInfo(null);
     setPreparedAnalysis(null);
-    setDetailsPrepared(false);
     setEstimateError("");
   };
 
@@ -647,7 +655,6 @@ export function useEstimateStudio() {
     }
     setCategoryId(id);
     setPreparedAnalysis(null);
-    setDetailsPrepared(false);
     setEstimateError("");
   };
 
@@ -939,6 +946,7 @@ export function useEstimateStudio() {
     stage,
     sizeId,
     qualityId,
+    questionStep,
     estimate,
     quoteOpen,
     quoteEstimate,
@@ -970,8 +978,8 @@ export function useEstimateStudio() {
     setShareOpen,
     notify,
     beginEstimate,
-    confirmDetails,
-    backToDescription,
+    continueQuestions,
+    backQuestion,
     retryEstimate,
     createEstimateFromChat,
     resetEstimate,
