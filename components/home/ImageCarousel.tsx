@@ -16,28 +16,28 @@ interface CarouselImage {
 const carouselImages: CarouselImage[] = [
   {
     id: 1,
-    src: "https://images.unsplash.com/photo-1551434678-e076c223a692?w=800&q=80",
+    src: "https://images.unsplash.com/photo-1551434678-e076c223a692?w=960&q=75",
     alt: "Web development project",
     title: "Web Applications",
     description: "Custom web apps with modern frameworks and scalable architecture.",
   },
   {
     id: 2,
-    src: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&q=80",
+    src: "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=960&q=75",
     alt: "Mobile app development",
     title: "Mobile Apps",
     description: "Native and cross-platform mobile applications for iOS and Android.",
   },
   {
     id: 3,
-    src: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=800&q=80",
+    src: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?w=960&q=75",
     alt: "E-commerce platform",
     title: "E-commerce Solutions",
     description: "Complete online stores with payment integration and inventory management.",
   },
   {
     id: 4,
-    src: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80",
+    src: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=960&q=75",
     alt: "SaaS platform dashboard",
     title: "SaaS Platforms",
     description: "Multi-tenant SaaS applications with subscription billing and analytics.",
@@ -132,7 +132,8 @@ export function ImageCarousel() {
                         src={image.src}
                         alt={image.alt}
                         fill
-                        sizes="(max-width: 768px) 100vw, 1120px"
+                        sizes="(max-width: 768px) 100vw, 960px"
+                        loading="lazy"
                         className="object-cover opacity-80 transition duration-1000 ease-out group-hover:opacity-100 group-hover:scale-110"
                       />
                       {/* Gradient overlay for text readability */}
@@ -216,7 +217,8 @@ export function ImageCarousel() {
                     src={image.src}
                     alt={image.alt}
                     fill
-                    sizes="320px"
+                    sizes="156px"
+                    loading="lazy"
                     className="object-cover"
                   />
                 </div>

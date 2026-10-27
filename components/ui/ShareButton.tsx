@@ -19,7 +19,7 @@ export function ShareButton() {
   );
 
   const share = async () => {
-    const url = window.location.origin;
+    const url = new URL("/", window.location.href).toString();
 
     if (typeof navigator.share === "function") {
       try {
@@ -28,10 +28,13 @@ export function ShareButton() {
           text: "Know what your project should cost.",
           url,
         });
-      } catch {
-        // The user dismissed the share sheet — nothing else to do.
+        return;
+      } catch (error) {
+        // A dismissed native share sheet should not trigger a copy prompt.
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
       }
-      return;
     }
 
     try {

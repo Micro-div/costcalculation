@@ -269,7 +269,7 @@ export function Estimator({
                   </span>
                 </div>
 
-                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <div className="mt-3">
                   <div>
                     <label className="block">
                       <span className="sr-only">Project category</span>
@@ -298,18 +298,6 @@ export function Estimator({
                         />
                       </span>
                     </label>
-                  </div>
-
-                  <div>
-                    <span className="sr-only">Project location</span>
-                    <LocationSelect
-                      countries={countries}
-                      locations={locations}
-                      value={locationId}
-                      onChange={onLocationChange}
-                      size="form"
-                      ariaLabel="Project location"
-                    />
                   </div>
                 </div>
 
@@ -422,6 +410,17 @@ export function Estimator({
                 <span className="min-w-0 truncate text-xs font-medium text-[#8a8691]">
                   {selectedCategory.shortName} · {selectedLocation.city}
                 </span>
+              </div>
+
+              <div className="mt-5">
+                <LocationSelect
+                  countries={countries}
+                  locations={locations}
+                  value={locationId}
+                  onChange={onLocationChange}
+                  size="form"
+                  ariaLabel="Project location"
+                />
               </div>
 
               {questionStep === 0 ? (

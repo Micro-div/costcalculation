@@ -120,19 +120,7 @@ export function HeroIntro({ estimator }: { estimator: ReactNode }) {
             )}
           </div>
 
-          <div className="mt-10 flex items-center gap-4 border-t border-[#e5e2ea] pt-6">
-            <div className="flex -space-x-2">
-              {["JM", "AR", "SK"].map((initials, index) => (
-                <span
-                  key={initials}
-                  className={`grid h-9 w-9 place-items-center rounded-full border-2 border-[#f8f8fb] text-[10px] font-bold text-white ${
-                    ["bg-[#5c6ac4]", "bg-[#bf6d8b]", "bg-[#398b7d]"][index]
-                  }`}
-                >
-                  {initials}
-                </span>
-              ))}
-            </div>
+          <div className="mt-10 border-t border-[#e5e2ea] pt-6">
             <p className="text-xs leading-5 text-[#77727e]">
               <span className="font-bold text-[#3c3943]">
                 Built for smarter planning
