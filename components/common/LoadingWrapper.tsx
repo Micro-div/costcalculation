@@ -3,11 +3,12 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Loader } from "./Loader";
 
-// The page mounts after 2.5s. The fade starts early enough that the loader is
+// The page mounts after 2s. The fade starts early enough that the loader is
 // completely gone by then, so the hero heading and estimator entrance
-// animations both begin at the same moment.
-const MIN_DISPLAY_TIME = 2500;
-const FADE_OUT_DURATION = 600;
+// animations both begin at the same moment. The loader mounts once per full
+// page load and is removed afterwards, so it never flashes a second time.
+const MIN_DISPLAY_TIME = 2000;
+const FADE_OUT_DURATION = 500;
 
 export function LoadingWrapper({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
