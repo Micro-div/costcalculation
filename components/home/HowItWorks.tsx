@@ -1,15 +1,6 @@
 ﻿import type { IconName } from "@/types";
 import { Icon } from "@/components/common/Icon";
 import { Reveal } from "@/components/common/Reveal";
-import { BannerVideo } from "./BannerVideo";
-
-// Both banner videos share this poster so the section always shows a frame
-// immediately, even before the video itself is requested.
-const BANNER_POSTER = "/cost.png";
-
-// ---------------------------------------------------------------
-// BANNER VIDEO (one per device, played once when scrolled into view)
-// ---------------------------------------------------------------
 
 // ---------------------------------------------------------------
 // WATCH BANNER (image slider + text + animated wave strip)
@@ -186,14 +177,6 @@ export function HowItWorks() {
       id="how-it-works"
       className="scroll-mt-20 border-y border-[#e8e5ed] bg-white"
     >
-      {/* One banner only: mobile (<640px) or desktop. */}
-      <BannerVideo
-        mobileSrc="/baner.mp4"
-        desktopSrc="/banner.mp4"
-        poster={BANNER_POSTER}
-        ariaLabel="CostCalc â€” Know the cost before you build! Get your project price in minutes."
-      />
-
       <div className="mx-auto max-w-[1200px] px-5 pt-20 sm:px-7 sm:pt-28">
         <div className="mx-auto max-w-2xl text-center">
           <Reveal>
