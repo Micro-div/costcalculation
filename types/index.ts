@@ -141,6 +141,38 @@ export interface EstimateResult {
   shareId?: string;
 }
 
+export type AiProjectKind = "physical" | "software" | "service";
+
+export interface AiQuantities {
+  acres?: number;
+  rooms?: number;
+  floors?: number;
+  units?: number;
+  animals?: number;
+  squareMeters?: number;
+  kilometers?: number;
+  staff?: number;
+}
+
+export interface AiAnalysisPayload {
+  status?: "ok";
+  understood?: string;
+  projectBrief?: string;
+  category: string;
+  projectType: string;
+  subject: string;
+  heading: string;
+  features: string[];
+  complexity: string;
+  quantities?: AiQuantities;
+  locationHint?: string;
+  assumptions?: string[];
+  scope?: ScopeItem[];
+  kind?: AiProjectKind;
+  source?: "ai" | "fallback";
+  model?: string | null;
+}
+
 export interface SharedEstimate {
   description: string;
   categoryId: CategoryId;

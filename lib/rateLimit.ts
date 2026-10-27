@@ -1,3 +1,8 @@
+import {
+  isUpstashConfigured,
+  warnIfUpstashMissingInProduction,
+} from "@/lib/upstashConfig";
+
 // Shared rate limiter for the Groq-backed routes.
 //
 // Uses Upstash Redis (REST) when UPSTASH_REDIS_REST_URL and
@@ -17,12 +22,12 @@ const globalStore = globalThis as typeof globalThis & {
 const buckets = globalStore.__costcalcRateBuckets ?? memoryBuckets;
 globalStore.__costcalcRateBuckets = buckets;
 
-function isUpstashConfigured(): boolean {
-  return Boolean(
-    process.env.UPSTASH_REDIS_REST_URL &&
-      process.env.UPSTASH_REDIS_REST_TOKEN,
-  );
-}
+const INCREMENT_WITH_EXPIRY = [
+  "local count = redis.call('INCR', KEYS[1])",
+  "local ttl = redis.call('PTTL', KEYS[1])",
+  "if count == 1 or ttl < 0 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end",
+  "return count",
+].join("; ");
 
 async function upstash(command: Array<string | number>): Promise<unknown> {
   const url = process.env.UPSTASH_REDIS_REST_URL as string;
@@ -91,11 +96,16 @@ export async function checkRateLimit(
 
   if (isUpstashConfigured()) {
     try {
-      const count = Number(await upstash(["INCR", key]));
+      const count = Number(
+        await upstash([
+          "EVAL",
+          INCREMENT_WITH_EXPIRY,
+          1,
+          key,
+          options.windowMs,
+        ]),
+      );
       if (!Number.isFinite(count)) throw new Error("invalid counter");
-      if (count === 1) {
-        await upstash(["PEXPIRE", key, options.windowMs]);
-      }
       return {
         limited: count > options.max,
         remaining: Math.max(0, options.max - count),
@@ -106,6 +116,8 @@ export async function checkRateLimit(
         error instanceof Error ? error.message : String(error),
       );
     }
+  } else {
+    warnIfUpstashMissingInProduction();
   }
 
   return memoryLimited(key, options.max, options.windowMs);

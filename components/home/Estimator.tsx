@@ -268,8 +268,13 @@ export function Estimator({
                     {description.length}/500
                   </span>
                 </div>
+                <p className="mt-2 text-xs leading-5 text-[#77727f]">
+                  Your description is sent to Groq to extract project
+                  requirements. Drafts are saved on this device; shared
+                  estimates are stored for 30 days.
+                </p>
 
-                <div className="mt-3">
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block">
                       <span className="sr-only">Project category</span>
@@ -298,6 +303,17 @@ export function Estimator({
                         />
                       </span>
                     </label>
+                  </div>
+                  <div>
+                    <span className="sr-only">Project location</span>
+                    <LocationSelect
+                      countries={countries}
+                      locations={locations}
+                      value={locationId}
+                      onChange={onLocationChange}
+                      size="form"
+                      ariaLabel="Project location"
+                    />
                   </div>
                 </div>
 

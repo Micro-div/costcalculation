@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
 import { PRICING_META } from "@/constants";
+import {
+  isUpstashConfigured,
+  warnIfUpstashMissingInProduction,
+} from "@/lib/upstashConfig";
 
 export const dynamic = "force-dynamic";
 
@@ -7,12 +11,12 @@ export const dynamic = "force-dynamic";
 // endpoint must be cheap, cacheable and safe to hit from uptime monitors.
 // Missing configuration is reported, not exercised.
 export async function GET() {
+  warnIfUpstashMissingInProduction();
+  const sharedStorageConfigured = isUpstashConfigured();
   const checks = {
     groqKeyPresent: Boolean(process.env.GROQ_API_KEY),
-    upstashConfigured: Boolean(
-      process.env.UPSTASH_REDIS_REST_URL &&
-        process.env.UPSTASH_REDIS_REST_TOKEN,
-    ),
+    upstashConfigured: sharedStorageConfigured,
+    sharedStorageConfigured,
   };
 
   const configured = checks.groqKeyPresent;
@@ -22,7 +26,7 @@ export async function GET() {
       checks,
       pricingUpdatedAt: PRICING_META.lastPricingUpdate,
       // The AI is optional: the app falls back to the rule-based analyzer.
-      aiMode: configured ? "groq" : "fallback",
+      aiMode: configured ? "groq" : "unavailable",
     },
     { status: configured ? 200 : 503 },
   );

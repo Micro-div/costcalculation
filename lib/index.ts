@@ -11,6 +11,7 @@ import type {
   CategoryId,
   CurrencyCode,
   EstimateResult,
+  AiAnalysisPayload,
   Location,
   LocationId,
   ProjectSizeId,
@@ -18,7 +19,6 @@ import type {
   TimelineUnit,
 } from "@/types";
 import { analyzeProjectWithAi } from "./analyzeProject";
-import type { AiAnalysisPayload } from "./aiAnalysis";
 import {
   CONTINGENCY_RATE,
   computePrice,

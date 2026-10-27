@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { checkRateLimit, clientKey } from "@/lib/rateLimit";
 
 const options = (scope: string, max = 2, windowMs = 60_000) => ({
@@ -37,6 +37,12 @@ describe("clientKey", () => {
 
 describe("checkRateLimit (memory fallback)", () => {
   beforeEach(() => {
+    delete process.env.UPSTASH_REDIS_REST_URL;
+    delete process.env.UPSTASH_REDIS_REST_TOKEN;
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
     delete process.env.UPSTASH_REDIS_REST_URL;
     delete process.env.UPSTASH_REDIS_REST_TOKEN;
   });
@@ -98,5 +104,31 @@ describe("checkRateLimit (memory fallback)", () => {
     await new Promise((resolve) => setTimeout(resolve, 25));
 
     expect((await checkRateLimit(request(), opts)).limited).toBe(false);
+  });
+
+  it("increments and sets expiry atomically with one Redis script call", async () => {
+    process.env.UPSTASH_REDIS_REST_URL = "https://redis.example";
+    process.env.UPSTASH_REDIS_REST_TOKEN = "test-token";
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, _init?: RequestInit) =>
+        new Response(JSON.stringify({ result: 1 }), { status: 200 }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const opts = options(uniqueScope(), 2, 45_000);
+
+    await expect(checkRateLimit(request(), opts)).resolves.toEqual({
+      limited: false,
+      remaining: 1,
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(
+      String(fetchMock.mock.calls[0]?.[1]?.body),
+    ) as [string, string, number, string, number];
+    expect(body?.[0]).toBe("EVAL");
+    expect(body?.[1]).toContain("redis.call('INCR'");
+    expect(body?.[1]).toContain("redis.call('PEXPIRE'");
+    expect(body?.[2]).toBe(1);
+    expect(body?.[4]).toBe(45_000);
   });
 });

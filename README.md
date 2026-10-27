@@ -13,8 +13,8 @@ a location hint). Every number is produced by rate tables in this repository.
 
 - Next.js 15 (App Router, React 19 Server Components)
 - TypeScript, Tailwind CSS
-- Groq for requirement extraction (optional; the app falls back to a
-  deterministic local extractor when no key is configured)
+- Groq for requirement extraction (`GROQ_API_KEY` is required for estimate
+  generation; `/api/analyze` returns HTTP 503 when it is missing)
 - Upstash Redis / Vercel KV for rate limiting and share links when configured,
   with an in-memory fallback for local development
 - Vitest for unit tests
@@ -52,16 +52,30 @@ Open http://localhost:3000.
 
 ### Environment variables
 
-Create `.env.local` (see `app/api/health` for the runtime check):
+Create `.env.local` for local development (see `app/api/health` for the
+runtime configuration check):
 
 | Variable | Required | Purpose |
 | --- | --- | --- |
-| `GROQ_API_KEY` | No | Enables AI requirement extraction and chat. Without it the app uses the local extractor and `/api/health` reports a degraded state. |
-| `UPSTASH_REDIS_REST_URL` | No | Enables shared rate limiting and persistent share links. |
-| `UPSTASH_REDIS_REST_TOKEN` | No | Token for the Upstash REST endpoint. |
+| `GROQ_API_KEY` | Yes for estimates | Groq API key. Without it, `POST /api/analyze` returns HTTP 503. |
+| `UPSTASH_REDIS_REST_URL` | Recommended in production | Upstash Redis REST URL for shared rate limiting and durable share links. |
+| `UPSTASH_REDIS_REST_TOKEN` | Recommended in production | Upstash Redis REST token. Keep it secret. |
 
 `GET /api/health` reports configuration and the pricing update date without
-calling any external service.
+calling any external service. Its `checks.sharedStorageConfigured` value is
+`true` only when both Upstash variables are configured.
+
+### Upstash setup
+
+1. Create a Redis database in Upstash and copy its REST URL and REST token.
+2. Add both values to `.env.local` for local testing.
+3. Add both environment variables to the hosting provider's production
+   environment settings, then redeploy.
+4. Check `/api/health`; `checks.sharedStorageConfigured` should be `true`.
+
+Without Upstash, the app uses process-local in-memory storage. This is suitable
+for local development only; shared rate limits and share links are not reliable
+across production serverless instances.
 
 ## Scripts
 
@@ -78,7 +92,7 @@ calling any external service.
 
 | Route | Purpose |
 | --- | --- |
-| `POST /api/analyze` | Validate a project description and extract requirements. No prices are returned. |
+| `POST /api/analyze` | `phase: "prepare"` extracts requirements; `phase: "estimate"` returns a server-calculated estimate with prices. Both phases require Groq and return HTTP 503 if `GROQ_API_KEY` is missing. |
 | `POST /api/chat` | Chat about a project. Client text is sent as data, never as system instructions. |
 | `POST /api/share` | Store a computed estimate and return a share id. |
 | `GET /api/share/[id]` | Load the exact stored estimate for a share id. |
@@ -108,5 +122,5 @@ tests/               Vitest unit tests
   work may need an on-site inspection before a final price.
 - Rate tables are static and maintained by hand; refresh them and update
   `PRICING_META.lastPricingUpdate` when rates change.
-- The in-memory share/rate-limit fallback is intended for local development and
-  single-instance use, not production scale.
+- The in-memory share/rate-limit fallback is intended for local development,
+  not production serverless deployments.

@@ -13,6 +13,11 @@ import {
   matchLocation,
   scrollToSection,
 } from "@/lib";
+import {
+  isValidEstimateData,
+  isValidHistoryEntry,
+  isValidSavedDraftData,
+} from "@/lib/estimateValidation";
 import type { SanitizedAnalysis } from "@/lib/analysisSchema";
 import type {
   CategoryId,
@@ -32,10 +37,7 @@ const HISTORY_KEY = "costcalc-history";
 const CONTROL_EVENT = "costcalc:choose-category";
 const FOCUS_EVENT = "costcalc:focus-estimator";
 
-const isEstimateData = (data: unknown): data is EstimateResult =>
-  typeof data === "object" &&
-  data !== null &&
-  typeof (data as { projectTitle?: unknown }).projectTitle === "string";
+const isEstimateData = isValidEstimateData;
 
 function isEstimateApiResponse(value: unknown): value is {
   status: "ok";
@@ -92,10 +94,7 @@ function isPreparedAnalysis(value: unknown): value is SanitizedAnalysis {
   );
 }
 
-const isSavedDraft = (data: unknown): data is SavedDraftData =>
-  typeof data === "object" &&
-  data !== null &&
-  typeof (data as { estimate?: unknown }).estimate === "object";
+const isSavedDraft = isValidSavedDraftData;
 
 const estimateIdentity = (est: EstimateResult) =>
   (est.description ?? "").trim().toLowerCase();
@@ -138,18 +137,7 @@ function readHistory(): HistoryEntry[] {
     if (!raw) return [];
     const parsed: unknown = JSON.parse(raw);
     if (!Array.isArray(parsed)) return [];
-    return parsed.filter((entry): entry is HistoryEntry => {
-      if (typeof entry !== "object" || entry === null) return false;
-      const candidate = entry as Record<string, unknown>;
-      return (
-        typeof candidate.id === "string" &&
-        (candidate.type === "estimate" || candidate.type === "draft") &&
-        typeof candidate.title === "string" &&
-        typeof candidate.savedAt === "string" &&
-        typeof candidate.data === "object" &&
-        candidate.data !== null
-      );
-    });
+    return parsed.filter(isValidHistoryEntry);
   } catch {
     return [];
   }
@@ -502,8 +490,17 @@ export function useEstimateStudio() {
     // round-trip; the AI analysis runs when the estimate is generated.
     analyzeAbortRef.current?.abort();
     analyzeAbortRef.current = null;
+    const detectedLocationId = matchLocation(text);
     if (!locationSelectedManually) {
-      setLocationId(detectLocation(text));
+      setLocationId(detectedLocationId ?? detectLocation(text));
+    } else if (
+      detectedLocationId &&
+      detectedLocationId !== locationId &&
+      window.confirm(
+        `Your description mentions ${locations.find((location) => location.id === detectedLocationId)?.city ?? detectedLocationId}. Change your selected project location?`,
+      )
+    ) {
+      setLocationId(detectedLocationId);
     }
     setEstimateError("");
     setNeedsInfo(null);

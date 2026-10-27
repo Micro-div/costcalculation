@@ -9,6 +9,13 @@
 // store so local development still works.
 
 import type { EstimateResult } from "@/types";
+import { isValidEstimateData } from "@/lib/estimateValidation";
+import {
+  isUpstashConfigured,
+  warnIfUpstashMissingInProduction,
+} from "@/lib/upstashConfig";
+
+export { isValidEstimateData as isStorableEstimate } from "@/lib/estimateValidation";
 
 const SHARE_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
 const KEY_PREFIX = "costcalc:estimate:";
@@ -27,13 +34,6 @@ const globalStore = globalThis as typeof globalThis & {
 };
 const store = globalStore.__costcalcEstimateStore ?? memoryStore;
 globalStore.__costcalcEstimateStore = store;
-
-function upstashConfigured(): boolean {
-  return Boolean(
-    process.env.UPSTASH_REDIS_REST_URL &&
-      process.env.UPSTASH_REDIS_REST_TOKEN,
-  );
-}
 
 async function upstash(command: Array<string | number>): Promise<unknown> {
   const res = await fetch(process.env.UPSTASH_REDIS_REST_URL as string, {
@@ -59,58 +59,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isFiniteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-/**
- * Structural check for an estimate before it is persisted. This is not a
- * pricing re-computation: the stored figures are trusted as-is, but the shape
- * must be valid so a malicious or corrupt payload cannot poison the store.
- */
-export function isStorableEstimate(value: unknown): value is EstimateResult {
-  if (!isRecord(value)) return false;
-  if (typeof value.description !== "string") return false;
-  if (value.description.length > 5000) return false;
-  if (typeof value.projectTitle !== "string") return false;
-  if (!isRecord(value.category) || typeof value.category.id !== "string") {
-    return false;
-  }
-  if (
-    !isRecord(value.location) ||
-    typeof value.location.id !== "string" ||
-    typeof value.location.currency !== "string"
-  ) {
-    return false;
-  }
-  if (!isRecord(value.size) || typeof value.size.id !== "string") return false;
-  if (!isRecord(value.quality) || typeof value.quality.id !== "string") {
-    return false;
-  }
-  if (!Array.isArray(value.items) || value.items.length > 100) return false;
-  for (const item of value.items) {
-    if (!isRecord(item)) return false;
-    if (typeof item.name !== "string" || typeof item.detail !== "string") {
-      return false;
-    }
-    if (!isFiniteNumber(item.quantity) || !isFiniteNumber(item.rate)) {
-      return false;
-    }
-  }
-  for (const key of ["subtotal", "contingency", "taxes", "total", "low", "high"]) {
-    if (!isFiniteNumber(value[key])) return false;
-  }
-  if (
-    !isFiniteNumber(value.confidence) ||
-    !isFiniteNumber(value.durationMin) ||
-    !isFiniteNumber(value.durationMax)
-  ) {
-    return false;
-  }
-  if (!Array.isArray(value.scope)) return false;
-  return true;
-}
-
 function newShareId(): string {
   try {
     return crypto.randomUUID();
@@ -129,7 +77,7 @@ function isExpired(record: StoredRecord): boolean {
 export async function saveEstimate(
   estimate: EstimateResult,
 ): Promise<string | null> {
-  if (!isStorableEstimate(estimate)) return null;
+  if (!isValidEstimateData(estimate)) return null;
 
   const record: StoredRecord = {
     id: newShareId(),
@@ -140,7 +88,7 @@ export async function saveEstimate(
   const serialized = JSON.stringify(record);
   if (serialized.length > MAX_ESTIMATE_JSON_BYTES) return null;
 
-  if (upstashConfigured()) {
+  if (isUpstashConfigured()) {
     try {
       await upstash([
         "SET",
@@ -159,6 +107,7 @@ export async function saveEstimate(
     }
   }
 
+  warnIfUpstashMissingInProduction();
   if (store.size > 500) {
     for (const [storedId, stored] of store) {
       if (isExpired(stored)) store.delete(storedId);
@@ -174,12 +123,12 @@ export async function getStoredEstimate(
 ): Promise<EstimateResult | null> {
   if (!isValidShareId(id)) return null;
 
-  if (upstashConfigured()) {
+  if (isUpstashConfigured()) {
     try {
       const raw = await upstash(["GET", `${KEY_PREFIX}${id}`]);
       if (typeof raw !== "string") return null;
       const parsed: unknown = JSON.parse(raw);
-      if (isRecord(parsed) && isStorableEstimate(parsed.estimate)) {
+      if (isRecord(parsed) && isValidEstimateData(parsed.estimate)) {
         return parsed.estimate;
       }
       return null;
@@ -191,11 +140,12 @@ export async function getStoredEstimate(
     }
   }
 
+  warnIfUpstashMissingInProduction();
   const record = store.get(id);
   if (!record) return null;
   if (isExpired(record)) {
     store.delete(id);
     return null;
   }
-  return isStorableEstimate(record.estimate) ? record.estimate : null;
+  return isValidEstimateData(record.estimate) ? record.estimate : null;
 }

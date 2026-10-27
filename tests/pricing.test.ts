@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { calculateEstimate } from "@/lib";
 import { CONTINGENCY_RATE } from "@/lib/pricing";
-import type { AiAnalysisPayload } from "@/lib/aiAnalysis";
+import type { AiAnalysisPayload } from "@/types";
 
 const smallWebsite = () =>
   calculateEstimate(

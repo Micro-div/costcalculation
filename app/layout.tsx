@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://costcalculation-two.vercel.app"),
   title: "CostCalc — Project Cost Estimator",
   description:
     "Describe your project and get a localized cost range, detailed scope, timeline and professional quotation in minutes.",
