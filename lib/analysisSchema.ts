@@ -3,6 +3,7 @@
 // invents is dropped here before it can reach the app.
 
 import { locations } from "@/constants";
+import { projectSizes, qualityOptions } from "@/constants";
 import { FEATURES, PROJECT_TYPES } from "@/lib/analyzeProject";
 
 export const ALLOWED_CATEGORIES = Array.from(
@@ -14,6 +15,8 @@ export const ALLOWED_PROJECT_TYPES = PROJECT_TYPES.map(
 export const ALLOWED_FEATURES = FEATURES.map((feature) => feature.label);
 export const ALLOWED_COMPLEXITY = ["Basic", "Standard", "Advanced"];
 export const ALLOWED_KINDS = ["physical", "software", "service"] as const;
+export const ALLOWED_SIZES = projectSizes.map((size) => size.id);
+export const ALLOWED_QUALITIES = qualityOptions.map((quality) => quality.id);
 
 export const MAX_DESCRIPTION_CHARS = 500;
 export const MAX_LOCATION_CHARS = 80;
@@ -56,6 +59,8 @@ export interface SanitizedAnalysis {
   heading: string;
   features: string[];
   complexity: string;
+  size: (typeof projectSizes)[number]["id"] | null;
+  quality: (typeof qualityOptions)[number]["id"] | null;
   quantities: SanitizedQuantities;
   locationHint: string;
   assumptions: string[];
@@ -183,6 +188,9 @@ function sanitizeAnalysis(data: unknown): SanitizedAnalysis | null {
     complexity: ALLOWED_COMPLEXITY.includes(String(source.complexity))
       ? String(source.complexity)
       : "Standard",
+    size: ALLOWED_SIZES.find((size) => size === source.size) ?? null,
+    quality:
+      ALLOWED_QUALITIES.find((quality) => quality === source.quality) ?? null,
     quantities: sanitizeQuantities(source.quantities),
     locationHint: capWords(source.locationHint, 4, 60),
     assumptions,

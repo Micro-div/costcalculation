@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { categories, locations } from "@/constants";
+import {
+  categories,
+  locations,
+  projectSizes,
+  qualityOptions,
+} from "@/constants";
 import { calculateEstimate, formatCompactCurrency } from "@/lib";
 import { saveEstimate } from "@/lib/estimateStore";
 import {
@@ -9,6 +14,7 @@ import {
   MAX_DESCRIPTION_CHARS,
   resolveKnownLocation,
   sanitizeAiResponse,
+  type SanitizedAnalysis,
 } from "@/lib/analysisSchema";
 import { callGroq, isGroqConfigured } from "@/lib/groq";
 import { checkRateLimit } from "@/lib/rateLimit";
@@ -37,13 +43,15 @@ const SYSTEM_PROMPT = [
   "- questions: 1-2 short questions (under 12 words each) in the user's language. If the location is missing, one must ask which country and city.",
   "",
   'If status is "ok", return exactly:',
-  '{ "status": "ok", "understood": string, "projectBrief": string, "kind": string, "category": string, "projectType": string, "subject": string, "heading": string, "features": string[], "complexity": string, "quantities": object, "locationHint": string, "assumptions": string[], "scope": [{"title": string, "description": string}] }',
+  '{ "status": "ok", "understood": string, "projectBrief": string, "kind": string, "category": string, "projectType": string, "subject": string, "heading": string, "features": string[], "complexity": string, "size": string | null, "quality": string | null, "quantities": object, "locationHint": string, "assumptions": string[], "scope": [{"title": string, "description": string}] }',
   "",
   `kind: exactly one of ${ALLOWED_KINDS.join(" | ")}. "physical" for anything built on land (construction, fit-out, infrastructure, venues, farms, animals, utilities), "software" for code, apps and websites, "service" for design, branding and marketing.`,
   'category: a short label (max 4 words), e.g. "Zoo / Wildlife Park", "Interior & Fit-Out", "Road Construction".',
   'projectType: a precise label (max 6 words), e.g. "Zoo / Wildlife Park Development".',
   `features: use [] when none apply. Otherwise only values from: ${ALLOWED_FEATURES.join(" | ")}`,
   `complexity: exactly one of ${ALLOWED_COMPLEXITY.join(" | ")}.`,
+  'size: "small" for a focused single workflow, "medium" for a usual scope, "large" for multiple workflows or extensive integrations; return null when the description does not support a choice.',
+  'quality: "essential" for budget-conscious basics, "standard" for a balanced build, "premium" for explicitly high-end/polished requirements; return null when the description does not support a choice.',
   "quantities: an object with only the numeric quantities the user actually stated. Allowed keys: acres, rooms, floors, units, animals, squareMeters, kilometers, staff. Omit the key when it was not stated. Never convert currencies or invent a quantity.",
   "locationHint: the city/country the user mentioned, or an empty string.",
   "assumptions: up to 5 short, project-specific assumptions (each under 16 words), or [].",
@@ -71,6 +79,9 @@ export async function POST(request: Request) {
   let description = "";
   let locationId = "";
   let categoryId = "";
+  let phase: "prepare" | "estimate" = "estimate";
+  let sizeId = "";
+  let qualityId = "";
   try {
     const body: unknown = await request.json();
     if (typeof body !== "object" || body === null) {
@@ -86,6 +97,11 @@ export async function POST(request: Request) {
     if (typeof record.location === "string") {
       locationId = record.location.trim().toLowerCase().slice(0, 40);
     }
+    if (record.phase === "prepare" || record.phase === "estimate") {
+      phase = record.phase;
+    }
+    if (typeof record.size === "string") sizeId = record.size;
+    if (typeof record.quality === "string") qualityId = record.quality;
   } catch {
     return jsonError("Invalid request body.", 400);
   }
@@ -101,9 +117,16 @@ export async function POST(request: Request) {
   if (!location) {
     return jsonError("Choose a valid project location.", 400);
   }
+  if (
+    phase === "estimate" &&
+    (!projectSizes.some((size) => size.id === sizeId) ||
+      !qualityOptions.some((quality) => quality.id === qualityId))
+  ) {
+    return jsonError("Choose a valid project size and quality.", 400);
+  }
 
   const knownLocation = resolveKnownLocation(location.id, "");
-
+  let parsed: SanitizedAnalysis | null = null;
   if (!isGroqConfigured()) {
     return jsonError(
       "Estimate generation is unavailable right now. Please try again later.",
@@ -137,8 +160,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const parsed = sanitizeAiResponse(result.content);
-  if (!parsed) {
+  const sanitized = sanitizeAiResponse(result.content);
+  if (!sanitized) {
     console.error(
       "[api/analyze] invalid model output:",
       result.content.slice(0, 300),
@@ -148,17 +171,25 @@ export async function POST(request: Request) {
       502,
     );
   }
+  if (sanitized.status === "needs_info") {
+    return NextResponse.json(sanitized);
+  }
+  parsed = sanitized;
 
-  if (parsed.status === "needs_info") {
-    return NextResponse.json(parsed);
+  if (!parsed) {
+    return jsonError("We couldn't read the project analysis. Please try again.", 502);
+  }
+  if (phase === "prepare") {
+    return NextResponse.json({ status: "ready", analysis: parsed });
   }
 
   const calculated = calculateEstimate(
     description,
     category.id,
     location.id,
-    "medium",
-    "standard",
+    projectSizes.find((size) => size.id === sizeId)?.id ?? projectSizes[1].id,
+    qualityOptions.find((quality) => quality.id === qualityId)?.id ??
+      qualityOptions[1].id,
     null,
     {
       ...parsed,

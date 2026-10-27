@@ -2,19 +2,29 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { categories, locations } from "@/constants";
+import {
+  categories,
+  locations,
+  projectSizes,
+  qualityOptions,
+} from "@/constants";
 import {
   detectLocation,
+  matchLocation,
   scrollToSection,
 } from "@/lib";
+import type { SanitizedAnalysis } from "@/lib/analysisSchema";
 import type {
   CategoryId,
   EstimateItem,
   EstimateResult,
   HistoryEntry,
   LocationId,
+  ProjectSizeId,
+  QualityId,
   SavedDraftData,
   ScopeItem,
+  Stage,
 } from "@/types";
 
 const SHARE_ID_PATTERN = /^[A-Za-z0-9_-]{8,64}$/;
@@ -50,6 +60,35 @@ function isEstimateApiResponse(value: unknown): value is {
     typeof estimate.durationMax === "number" &&
     Array.isArray(estimate.items) &&
     typeof estimate.location?.currency === "string"
+  );
+}
+
+function isPreparedAnalysis(value: unknown): value is SanitizedAnalysis {
+  if (typeof value !== "object" || value === null) return false;
+  const analysis = value as Record<string, unknown>;
+  return (
+    analysis.status === "ok" &&
+    typeof analysis.category === "string" &&
+    typeof analysis.projectType === "string" &&
+    typeof analysis.heading === "string" &&
+    typeof analysis.subject === "string" &&
+    typeof analysis.understood === "string" &&
+    typeof analysis.projectBrief === "string" &&
+    typeof analysis.complexity === "string" &&
+    typeof analysis.locationHint === "string" &&
+    (analysis.kind === null ||
+      analysis.kind === "physical" ||
+      analysis.kind === "software" ||
+      analysis.kind === "service") &&
+    (analysis.size === null ||
+      projectSizes.some((size) => size.id === analysis.size)) &&
+    (analysis.quality === null ||
+      qualityOptions.some((quality) => quality.id === analysis.quality)) &&
+    Array.isArray(analysis.features) &&
+    Array.isArray(analysis.assumptions) &&
+    Array.isArray(analysis.scope) &&
+    typeof analysis.quantities === "object" &&
+    analysis.quantities !== null
   );
 }
 
@@ -134,7 +173,12 @@ export function useEstimateStudio() {
   const [locationId, setLocationId] = useState<LocationId>("us");
   const [locationSelectedManually, setLocationSelectedManually] =
     useState(false);
-  const [stage, setStage] = useState<"describe" | "complete">("describe");
+  const [stage, setStage] = useState<Stage>("describe");
+  const [sizeId, setSizeId] = useState<ProjectSizeId>("medium");
+  const [qualityId, setQualityId] = useState<QualityId>("standard");
+  const [preparedAnalysis, setPreparedAnalysis] =
+    useState<SanitizedAnalysis | null>(null);
+  const [detailsPrepared, setDetailsPrepared] = useState(false);
   const [estimate, setEstimate] = useState<EstimateResult | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteEstimate, setQuoteEstimate] = useState<EstimateResult | null>(
@@ -146,6 +190,7 @@ export function useEstimateStudio() {
   const [history, setHistory] = useState<HistoryEntry[]>([]);
   const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isPreparingDetails, setIsPreparingDetails] = useState(false);
   const [estimateError, setEstimateError] = useState("");
   const [errorToast, setErrorToast] = useState("");
   const [shareError, setShareError] = useState("");
@@ -231,6 +276,8 @@ export function useEstimateStudio() {
         setDescription(stored.description);
         setCategoryId(stored.category.id as CategoryId);
         setLocationId(stored.location.id);
+        setSizeId(stored.size.id);
+        setQualityId(stored.quality.id);
         setEstimate({ ...stored, shareId: id });
         setStage("complete");
         window.setTimeout(() => scrollToSection("estimate-result"), 150);
@@ -253,12 +300,13 @@ export function useEstimateStudio() {
   // Abort any in-flight extraction on unmount.
   useEffect(() => () => analyzeAbortRef.current?.abort(), []);
 
-  const generateEstimate = async (
+  const prepareDetails = async (
     text: string,
     targetCategoryId: CategoryId,
     targetLocationId: LocationId,
+    useLocationHint = !locationSelectedManually,
   ) => {
-    if (isGenerating) return;
+    if (isPreparingDetails || isGenerating) return;
     analyzeAbortRef.current?.abort();
     const controller = new AbortController();
     analyzeAbortRef.current = controller;
@@ -268,16 +316,19 @@ export function useEstimateStudio() {
       controller.abort();
     }, 30_000);
 
-    setIsGenerating(true);
+    setIsPreparingDetails(true);
     setEstimateError("");
     setNeedsInfo(null);
     setShareError("");
+    setEstimate(null);
+    setDetailsPrepared(false);
     setLocationId(targetLocationId);
     try {
       const response = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          phase: "prepare",
           description: text,
           category: targetCategoryId,
           location: targetLocationId,
@@ -311,13 +362,120 @@ export function useEstimateStudio() {
             (question): question is string => typeof question === "string",
           ),
         });
+        setPreparedAnalysis(null);
+        setDetailsPrepared(false);
+        setStage("describe");
+        return;
+      }
+      const responseBody =
+        typeof data === "object" && data !== null
+          ? (data as { status?: unknown; analysis?: unknown })
+          : null;
+      if (
+        responseBody?.status !== "ready" ||
+        !isPreparedAnalysis(responseBody.analysis)
+      ) {
+        throw new Error("The analysis service returned invalid project details.");
+      }
+      const analysis = responseBody.analysis;
+      setPreparedAnalysis(analysis);
+      if (analysis.size) setSizeId(analysis.size);
+      if (analysis.quality) setQualityId(analysis.quality);
+      if (useLocationHint) {
+        const hintedLocationId = matchLocation(analysis.locationHint);
+        if (hintedLocationId) {
+          setLocationId(hintedLocationId);
+          setLocationSelectedManually(true);
+        }
+      }
+      setStage("details");
+      setDetailsPrepared(true);
+    } catch (error) {
+      if (controller.signal.aborted && !timedOut) return;
+      setPreparedAnalysis(null);
+      setStage("details");
+      setDetailsPrepared(true);
+      setEstimateError(
+        `${timedOut ? "Project analysis timed out." : error instanceof Error ? error.message : "Project analysis failed."} You can confirm your details and retry with the estimate.`,
+      );
+    } finally {
+      window.clearTimeout(timeout);
+      if (!controller.signal.aborted || timedOut) setIsPreparingDetails(false);
+    }
+  };
+
+  const generateEstimate = async (
+    text: string,
+    targetCategoryId: CategoryId,
+    targetLocationId: LocationId,
+    targetSizeId: ProjectSizeId,
+    targetQualityId: QualityId,
+  ) => {
+    if (isGenerating) return;
+    analyzeAbortRef.current?.abort();
+    const controller = new AbortController();
+    analyzeAbortRef.current = controller;
+    let timedOut = false;
+    const timeout = window.setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, 30_000);
+
+    setIsGenerating(true);
+    setStage("complete");
+    setEstimate(null);
+    setEstimateError("");
+    setNeedsInfo(null);
+    setShareError("");
+    setLocationId(targetLocationId);
+    try {
+      const response = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          phase: "estimate",
+          description: text,
+          category: targetCategoryId,
+          location: targetLocationId,
+          size: targetSizeId,
+          quality: targetQualityId,
+        }),
+        signal: controller.signal,
+      });
+      const data: unknown = await response.json();
+      if (!response.ok) {
+        const message =
+          typeof data === "object" &&
+          data !== null &&
+          typeof (data as { error?: unknown }).error === "string"
+            ? (data as { error: string }).error
+            : "We couldn't generate your estimate. Please try again.";
+        throw new Error(message);
+      }
+      if (
+        typeof data === "object" &&
+        data !== null &&
+        (data as { status?: unknown }).status === "needs_info" &&
+        typeof (data as { understood?: unknown }).understood === "string" &&
+        Array.isArray((data as { questions?: unknown }).questions)
+      ) {
+        const needsInfoData = data as {
+          understood: string;
+          questions: string[];
+        };
+        setNeedsInfo({
+          understood: needsInfoData.understood,
+          questions: needsInfoData.questions.filter(
+            (question): question is string => typeof question === "string",
+          ),
+        });
+        setStage("describe");
         return;
       }
       if (!isEstimateApiResponse(data)) {
         throw new Error("The estimate service returned an invalid response.");
       }
       setEstimate(data.estimate);
-      setStage("complete");
       setLoadedDraftId(null);
       window.setTimeout(() => scrollToSection("estimate-result"), 80);
     } catch (error) {
@@ -329,6 +487,7 @@ export function useEstimateStudio() {
             ? error.message
             : "We couldn't generate your estimate. Please retry.",
       );
+      setStage("details");
     } finally {
       window.clearTimeout(timeout);
       if (!controller.signal.aborted || timedOut) setIsGenerating(false);
@@ -339,17 +498,47 @@ export function useEstimateStudio() {
     event.preventDefault();
     const text = description.trim();
     if (text.length < 12) return;
+    if (detailsPrepared) {
+      setEstimateError("");
+      setStage("details");
+      return;
+    }
     const selectedLocationId = locationSelectedManually
       ? locationId
       : detectLocation(text);
-    void generateEstimate(text, categoryId, selectedLocationId);
+    void prepareDetails(text, categoryId, selectedLocationId);
   };
 
   const retryEstimate = () => {
     const text = description.trim();
     if (text.length >= 12) {
-      void generateEstimate(text, categoryId, locationId);
+      void generateEstimate(
+        text,
+        categoryId,
+        locationId,
+        sizeId,
+        qualityId,
+      );
     }
+  };
+
+  const confirmDetails = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const text = description.trim();
+    if (text.length < 12) return;
+    void generateEstimate(
+      text,
+      categoryId,
+      locationId,
+      sizeId,
+      qualityId,
+    );
+  };
+
+  const backToDescription = () => {
+    if (isGenerating) return;
+    setEstimateError("");
+    setStage("describe");
   };
 
   const createEstimateFromChat = async (
@@ -368,7 +557,8 @@ export function useEstimateStudio() {
 
     setLocationId(loc.id);
     setLocationSelectedManually(true);
-    await generateEstimate(clean, categoryId, loc.id);
+    setStage("describe");
+    await prepareDetails(clean, categoryId, loc.id, false);
   };
 
   const resetEstimate = () => {
@@ -380,6 +570,10 @@ export function useEstimateStudio() {
     setLocationId("us");
     setLocationSelectedManually(false);
     setStage("describe");
+    setSizeId("medium");
+    setQualityId("standard");
+    setPreparedAnalysis(null);
+    setDetailsPrepared(false);
     setEstimate(null);
     setEstimateError("");
     setNeedsInfo(null);
@@ -390,6 +584,7 @@ export function useEstimateStudio() {
     setQuoteOpen(false);
     setShareOpen(false);
     setIsGenerating(false);
+    setIsPreparingDetails(false);
     window.setTimeout(() => scrollToSection("estimator"), 50);
   };
 
@@ -401,6 +596,9 @@ export function useEstimateStudio() {
       setStage("describe");
       setLoadedDraftId(null);
       setNeedsInfo(null);
+      setPreparedAnalysis(null);
+      setDetailsPrepared(false);
+      setEstimate(null);
       if (!description.trim()) setDescription(category.example);
       window.setTimeout(() => scrollToSection("estimator"), 30);
     },
@@ -431,21 +629,40 @@ export function useEstimateStudio() {
   // Manual edits always win over AI suggestions: they clear the automatic
   // category/location hints so nothing silently changes them later.
   const changeDescription = (value: string) => {
+    if (isPreparingDetails) {
+      analyzeAbortRef.current?.abort();
+      setIsPreparingDetails(false);
+    }
     setDescription(value);
     setNeedsInfo(null);
+    setPreparedAnalysis(null);
+    setDetailsPrepared(false);
     setEstimateError("");
   };
 
   const changeCategory = (id: CategoryId) => {
+    if (isPreparingDetails) {
+      analyzeAbortRef.current?.abort();
+      setIsPreparingDetails(false);
+    }
     setCategoryId(id);
+    setPreparedAnalysis(null);
+    setDetailsPrepared(false);
     setEstimateError("");
   };
 
   const changeLocation = (id: LocationId) => {
+    if (isPreparingDetails) {
+      analyzeAbortRef.current?.abort();
+      setIsPreparingDetails(false);
+    }
     setLocationId(id);
     setLocationSelectedManually(true);
     setEstimateError("");
   };
+
+  const changeSize = (id: ProjectSizeId) => setSizeId(id);
+  const changeQuality = (id: QualityId) => setQualityId(id);
 
   const closeQuote = () => {
     setQuoteOpen(false);
@@ -659,6 +876,8 @@ export function useEstimateStudio() {
       setDescription(est.description);
       setCategoryId(est.category.id as CategoryId);
       setLocationId(est.location.id);
+      setSizeId(est.size.id);
+      setQualityId(est.quality.id);
       setEstimate(est);
       setStage("complete");
       setLoadedDraftId(null);
@@ -710,7 +929,7 @@ export function useEstimateStudio() {
     }
   };
 
-  const activeStep = stage === "describe" ? 0 : 2;
+  const activeStep = stage === "describe" ? 0 : stage === "details" ? 1 : 2;
   const descriptionReady = description.trim().length >= 12;
 
   return {
@@ -718,6 +937,8 @@ export function useEstimateStudio() {
     categoryId,
     locationId,
     stage,
+    sizeId,
+    qualityId,
     estimate,
     quoteOpen,
     quoteEstimate,
@@ -730,6 +951,7 @@ export function useEstimateStudio() {
     history,
     loadedDraftId,
     isGenerating,
+    isPreparingDetails,
     estimateError,
     needsInfo,
     selectedCategory,
@@ -739,6 +961,8 @@ export function useEstimateStudio() {
     changeDescription,
     changeCategory,
     changeLocation,
+    changeSize,
+    changeQuality,
     closeQuote,
     setStage,
     setQuoteOpen,
@@ -746,6 +970,8 @@ export function useEstimateStudio() {
     setShareOpen,
     notify,
     beginEstimate,
+    confirmDetails,
+    backToDescription,
     retryEstimate,
     createEstimateFromChat,
     resetEstimate,

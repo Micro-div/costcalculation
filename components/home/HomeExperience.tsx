@@ -84,6 +84,8 @@ export function HomeExperience({
               description={studio.description}
               categoryId={studio.categoryId}
               locationId={studio.locationId}
+              sizeId={studio.sizeId}
+              qualityId={studio.qualityId}
               estimate={studio.estimate}
               needsInfo={studio.needsInfo}
               descriptionReady={studio.descriptionReady}
@@ -92,7 +94,12 @@ export function HomeExperience({
               onDescriptionChange={studio.changeDescription}
               onCategoryChange={studio.changeCategory}
               onLocationChange={studio.changeLocation}
+              onSizeChange={studio.changeSize}
+              onQualityChange={studio.changeQuality}
               onSubmitDescription={studio.beginEstimate}
+              onSubmitDetails={studio.confirmDetails}
+              onBackToDescription={studio.backToDescription}
+              isPreparingDetails={studio.isPreparingDetails}
               isGenerating={studio.isGenerating}
               estimateError={studio.estimateError}
               onRetryEstimate={studio.retryEstimate}

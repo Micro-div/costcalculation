@@ -7,6 +7,8 @@ import {
   countries,
   exampleProjects,
   locations,
+  projectSizes,
+  qualityOptions,
 } from "@/constants";
 import {
   formatCompactCurrency,
@@ -21,6 +23,8 @@ import type {
   IconName,
   Location,
   LocationId,
+  ProjectSizeId,
+  QualityId,
   Stage,
 } from "@/types";
 import { Icon } from "@/components/common/Icon";
@@ -32,6 +36,8 @@ export interface EstimatorProps {
   description: string;
   categoryId: CategoryId;
   locationId: LocationId;
+  sizeId: ProjectSizeId;
+  qualityId: QualityId;
   estimate: EstimateResult | null;
   // The AI's "needs_info" verdict (description too vague to estimate):
   // what it understood + the questions it wants answered.
@@ -42,7 +48,12 @@ export interface EstimatorProps {
   onDescriptionChange: (value: string) => void;
   onCategoryChange: (id: CategoryId) => void;
   onLocationChange: (id: LocationId) => void;
+  onSizeChange: (id: ProjectSizeId) => void;
+  onQualityChange: (id: QualityId) => void;
   onSubmitDescription: (event: FormEvent<HTMLFormElement>) => void;
+  onSubmitDetails: (event: FormEvent<HTMLFormElement>) => void;
+  onBackToDescription: () => void;
+  isPreparingDetails: boolean;
   isGenerating: boolean;
   estimateError: string;
   onRetryEstimate: () => void;
@@ -116,6 +127,8 @@ export function Estimator({
   description,
   categoryId,
   locationId,
+  sizeId,
+  qualityId,
   estimate,
   needsInfo,
   descriptionReady,
@@ -124,7 +137,12 @@ export function Estimator({
   onDescriptionChange,
   onCategoryChange,
   onLocationChange,
+  onSizeChange,
+  onQualityChange,
   onSubmitDescription,
+  onSubmitDetails,
+  onBackToDescription,
+  isPreparingDetails,
   isGenerating,
   estimateError,
   onRetryEstimate,
@@ -193,7 +211,11 @@ export function Estimator({
                   ? needsInfo
                     ? "A few quick details"
                     : "Describe your project"
-                  : "Your estimate is ready"}
+                  : stage === "details"
+                    ? "Confirm your project details"
+                    : isGenerating
+                      ? "Preparing your estimate"
+                      : "Your estimate is ready"}
               </p>
               <p className="mt-0.5 text-xs text-[#85818c]">
                 Free · No account needed
@@ -210,13 +232,22 @@ export function Estimator({
                 <div className="min-w-0 flex-1">
                   <div
                     className={`h-1.5 rounded-full transition-colors ${
-                      index <= activeStep ? "bg-[#6d58e8]" : "bg-[#e9e6ee]"
+                      index === activeStep
+                        ? "bg-[#6d58e8]"
+                        : index < activeStep
+                          ? "bg-[#c9c0f5]"
+                          : "bg-[#e9e6ee]"
                     }`}
                   />
                   <p
                     className={`mt-1 truncate text-[10px] font-semibold sm:text-[11px] ${
-                      index <= activeStep ? "text-[#5b4abe]" : "text-[#a29ea8]"
+                      index === activeStep
+                        ? "text-[#5b4abe]"
+                        : index < activeStep
+                          ? "text-[#8277bd]"
+                          : "text-[#a29ea8]"
                     }`}
+                    aria-current={index === activeStep ? "step" : undefined}
                   >
                     {label}
                   </p>
@@ -296,7 +327,7 @@ export function Estimator({
               </aside>
             </div>
 
-            <div className="mt-2.5 grid gap-3 sm:grid-cols-2">
+            <div className="mt-2.5 max-w-md">
               <div>
                 <label className="block">
                   <span className="sr-only">Project category</span>
@@ -326,16 +357,6 @@ export function Estimator({
                   </span>
                 </label>
               </div>
-              <div>
-                <LocationSelect
-                  countries={countries}
-                  locations={locations}
-                  value={locationId}
-                  onChange={onLocationChange}
-                  size="form"
-                  ariaLabel="Project location"
-                />
-              </div>
             </div>
 
             <div className="mt-3 flex flex-col gap-2.5 sm:flex-row">
@@ -349,10 +370,10 @@ export function Estimator({
               </button> */}
               <button
                 type="submit"
-                disabled={!descriptionReady || isGenerating}
+                disabled={!descriptionReady || isPreparingDetails}
                 className="group flex flex-1 items-center justify-center gap-2 rounded-xl bg-[#6754e7] px-5 py-3 text-sm font-bold text-white shadow-[0_10px_25px_rgba(103,84,231,0.25)] transition hover:bg-[#5946d3] disabled:cursor-not-allowed disabled:bg-[#c8c3d6] disabled:shadow-none"
               >
-                {isGenerating ? (
+                {isPreparingDetails ? (
                   <>
                     <svg
                       className="h-4 w-4 animate-spin"
@@ -374,11 +395,11 @@ export function Estimator({
                         d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
                       />
                     </svg>
-                    Generating estimate…
+                    Preparing details…
                   </>
                 ) : (
                   <>
-                    Analyze my project
+                    Continue to details
                     <Icon
                       name="arrow-right"
                       className="h-4 w-4 transition-transform group-hover:translate-x-0.5"
@@ -389,7 +410,7 @@ export function Estimator({
             </div>
             <p className="mt-1.5 text-center text-[10px] font-medium text-[#95919c]">
               {descriptionReady
-                ? "Your estimate is generated and saved securely by our server."
+                ? "Review and confirm the project size, quality and location before pricing."
                 : "Add a few details above to continue."}
             </p>
             {estimateError && (
@@ -409,6 +430,161 @@ export function Estimator({
                 </button>
               </div>
             )}
+          </form>
+        )}
+
+        {stage === "details" && (
+          <form
+            onSubmit={onSubmitDetails}
+            className="rounded-[24px] border border-[#e4dff8] bg-gradient-to-br from-[#faf8ff] via-white to-[#f2faf7] p-4 sm:p-6"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="rounded-full bg-[#ede9ff] px-3 py-1 text-[11px] font-bold text-[#6652cc]">
+                Final step
+              </span>
+              <span className="min-w-0 truncate text-xs font-medium text-[#8a8691]">
+                {selectedCategory.shortName} · {description.trim()}
+              </span>
+            </div>
+
+            <fieldset className="mt-5">
+              <legend className="text-sm font-bold text-[#302d37]">
+                How large is your project?
+              </legend>
+              <p className="mt-1 text-xs leading-5 text-[#817d88]">
+                Size sets the team and time needed. Pick the closest scope.
+              </p>
+              <div className="mt-2.5 grid gap-2.5 sm:grid-cols-3">
+                {projectSizes.map((size) => {
+                  const selected = sizeId === size.id;
+                  return (
+                    <button
+                      key={size.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => onSizeChange(size.id)}
+                      className={`flex items-center gap-3 rounded-2xl border p-3.5 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#7460e4]/20 ${
+                        selected
+                          ? "border-[#7460e4] bg-[#f4f1ff] shadow-[0_0_0_3px_rgba(116,96,228,0.08)]"
+                          : "border-[#e3e0e7] bg-white hover:border-[#c9c3e8] hover:bg-[#fbfaff]"
+                      }`}
+                    >
+                      <span
+                        className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
+                          selected
+                            ? "bg-[#6d58df] text-white"
+                            : "bg-[#f0eef3] text-[#77727f]"
+                        }`}
+                      >
+                        <Icon
+                          name={selected ? "check" : "layers"}
+                          className="h-4 w-4"
+                        />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold text-[#37333f]">
+                          {size.name}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-5 text-[#817d88]">
+                          {size.example}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            <fieldset className="mt-5">
+              <legend className="text-sm font-bold text-[#302d37]">
+                What level of quality do you need?
+              </legend>
+              <p className="mt-1 text-xs leading-5 text-[#817d88]">
+                Quality adjusts the finish and polish of the work.
+              </p>
+              <div className="mt-2.5 grid gap-2.5 sm:grid-cols-3">
+                {qualityOptions.map((quality) => {
+                  const selected = qualityId === quality.id;
+                  return (
+                    <button
+                      key={quality.id}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() => onQualityChange(quality.id)}
+                      className={`flex items-center gap-3 rounded-2xl border p-3.5 text-left transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#7460e4]/20 ${
+                        selected
+                          ? "border-[#7460e4] bg-[#f4f1ff] shadow-[0_0_0_3px_rgba(116,96,228,0.08)]"
+                          : "border-[#e3e0e7] bg-white hover:border-[#c9c3e8] hover:bg-[#fbfaff]"
+                      }`}
+                    >
+                      <span
+                        className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${
+                          selected
+                            ? "bg-[#6d58df] text-white"
+                            : "bg-[#f0eef3] text-[#77727f]"
+                        }`}
+                      >
+                        <Icon
+                          name={selected ? "check" : "sparkles"}
+                          className="h-4 w-4"
+                        />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold text-[#37333f]">
+                          {quality.name}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-5 text-[#817d88]">
+                          {quality.description}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </fieldset>
+
+            <div className="mt-5 sm:max-w-xs">
+              <span className="mb-1.5 block text-sm font-bold text-[#302d37]">
+                Project location
+              </span>
+              <LocationSelect
+                countries={countries}
+                locations={locations}
+                value={locationId}
+                onChange={onLocationChange}
+                size="form"
+                ariaLabel="Project location"
+              />
+              <p className="mt-1 text-xs leading-5 text-[#817d88]">
+                Currency and local rates follow this choice.
+              </p>
+            </div>
+
+            {estimateError && (
+              <p role="alert" className="mt-4 rounded-xl bg-[#fff5f6] p-3 text-sm text-[#8a2432]">
+                {estimateError}
+              </p>
+            )}
+
+            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-between">
+              <button
+                type="button"
+                onClick={onBackToDescription}
+                disabled={isGenerating}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[#ddd9e3] bg-white px-5 text-sm font-bold text-[#5c5864] transition hover:bg-[#f7f6f8] disabled:opacity-50"
+              >
+                <Icon name="chevron-left" className="h-4 w-4" />
+                Back
+              </button>
+              <button
+                type="submit"
+                disabled={isGenerating}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[#6754e7] px-5 text-sm font-bold text-white shadow-[0_10px_25px_rgba(103,84,231,0.22)] transition hover:bg-[#5946d3] disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {isGenerating ? "Generating estimate…" : "Generate my estimate"}
+                <Icon name="arrow-right" className="h-4 w-4" />
+              </button>
+            </div>
           </form>
         )}
 
@@ -441,6 +617,24 @@ export function Estimator({
                 Add those details to your description, then submit it again.
               </p>
             </div>
+          </div>
+        )}
+
+        {stage === "complete" && isGenerating && !estimate && (
+          <div
+            role="status"
+            aria-live="polite"
+            className="rounded-[20px] border border-[#dcd6fa] bg-white p-8 text-center"
+          >
+            <span className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-[#f0edff] text-[#6754e7]">
+              <Icon name="rotate" className="h-6 w-6 animate-spin" />
+            </span>
+            <p className="mt-4 text-base font-bold text-[#302d37]">
+              Generating your estimate
+            </p>
+            <p className="mt-1 text-sm text-[#77727e]">
+              Your confirmed details are being priced securely.
+            </p>
           </div>
         )}
 

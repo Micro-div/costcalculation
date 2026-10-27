@@ -17,6 +17,8 @@ const validAnalysis = {
   heading: "Bakery website",
   features: ["Online payment", "not-a-real-feature"],
   complexity: "Advanced",
+  size: "large",
+  quality: "premium",
   quantities: {
     rooms: 3,
     acres: "invalid",
@@ -54,7 +56,9 @@ describe("sanitizeAiResponse", () => {
         "locationHint",
         "projectBrief",
         "projectType",
+        "quality",
         "quantities",
+        "size",
         "scope",
         "status",
         "subject",
@@ -66,6 +70,8 @@ describe("sanitizeAiResponse", () => {
     expect(result).not.toHaveProperty("confidence");
     expect(result).not.toHaveProperty("duration");
     expect(result.features).toEqual(["Online payment"]);
+    expect(result.size).toBe("large");
+    expect(result.quality).toBe("premium");
     expect(ALLOWED_FEATURES).toContain("Online payment");
     expect(result.quantities).toEqual({
       rooms: 3,
@@ -82,12 +88,16 @@ describe("sanitizeAiResponse", () => {
         ...validAnalysis,
         complexity: "Impossible",
         kind: "magic",
+        size: "giant",
+        quality: "luxury",
       }),
     );
 
     if (!result || result.status !== "ok") throw new Error("expected ok");
     expect(result.complexity).toBe("Standard");
     expect(result.kind).toBeNull();
+    expect(result.size).toBeNull();
+    expect(result.quality).toBeNull();
   });
 
   it("rejects malformed JSON, arrays and missing required fields", () => {
