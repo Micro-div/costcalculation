@@ -109,12 +109,6 @@ export function HomeExperience({
           }
         />
 
-        {services}
-
-        {carousel}
-
-        {animation}
-
         {studio.estimate && (
           <EstimateResultSection
             estimate={studio.estimate}
@@ -124,6 +118,12 @@ export function HomeExperience({
             onNewEstimate={studio.resetEstimate}
           />
         )}
+
+        {services}
+
+        {carousel}
+
+        {animation}
 
         {howItWorks}
 
