@@ -26,7 +26,7 @@ export function LogoMagnet() {
         x: offsetX * 0.3,
         y: offsetY * 0.3,
         duration: 1,
-        ease: "cubic-bezier(0.23, 1, 0.320, 1)",
+        ease: "power3.out",
       });
     };
 
