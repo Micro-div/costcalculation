@@ -1,8 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   // IMPORTANT: no `output: 'export'` here. Static export removes API routes
-  // (app/api/analyze, app/api/chat, app/api/share), which are required for AI
-  // analysis and share links. Deploy as a normal Next.js app (Vercel default).
+  // (app/api/analyze, app/api/chat, app/api/share/[id]), which are required
+  // for AI analysis and share links. Deploy as a normal Next.js app (Vercel
+  // default).
 
   // NOTE: do NOT re-add `experimental: { workerThreads: false, cpus: 1 }`.
   // Limiting the build to one CPU makes Next.js 15.3 race its own trace
