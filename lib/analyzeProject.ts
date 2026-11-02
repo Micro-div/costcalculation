@@ -3,6 +3,56 @@
 // Edit the config blocks; logic reads from them, nothing is hardcoded.
 // =====================================================================
 
+import type { AiAnalysisPayload, AiProjectKind, AiQuantities } from "@/types";
+
+export type ProjectComplexity = "Basic" | "Standard" | "Advanced";
+
+export interface ProjectScopeItem {
+  title: string;
+  description: string;
+}
+
+export interface ProjectTypeConfig {
+  key: string;
+  label: string;
+  projectType: string;
+  keywords: string[];
+  category: string;
+  categoryId: string;
+  strip: string[];
+  basePriceUSD: number;
+  baseWeeks: number;
+  scope: ProjectScopeItem[];
+  assumptions: string[];
+}
+
+export interface ProjectFeature {
+  label: string;
+  keywords: string[];
+  price: number;
+  weeks: number;
+  scopeItem: ProjectScopeItem;
+}
+
+export interface ProjectAnalysis {
+  category: string;
+  categoryId: string;
+  projectType: string;
+  projectTypeKey: string;
+  kind: AiProjectKind;
+  aiCategory?: string;
+  aiProjectType?: string;
+  subject: string;
+  heading: string;
+  features: string[];
+  complexity: ProjectComplexity;
+  quantities: AiQuantities;
+  locationHint: string;
+  scope: ProjectScopeItem[];
+  assumptions: string[];
+  risks: string[];
+}
+
 // PROJECT TYPES: what the user wants to build.
 // keywords  -> scoring words (longer = stronger signal, typo-tolerant)
 // category  -> display category returned to the UI
@@ -11,7 +61,7 @@
 // strip     -> words removed from the extracted subject
 // basePriceUSD / baseWeeks -> starting cost & timeline before features
 // scope / assumptions -> per-type defaults for the result page
-const PROJECT_TYPES = [
+const PROJECT_TYPES: ProjectTypeConfig[] = [
   {
     key: "food",
     label: "Food Delivery",
@@ -246,7 +296,7 @@ const PROJECT_TYPES = [
 ];
 
 // FEATURES: detected from the text. price -> USD add-on, weeks -> added weeks.
-const FEATURES = [
+const FEATURES: ProjectFeature[] = [
   { label: "Online payment", keywords: ["payment", "payments", "online payment", "checkout", "stripe", "paypal", "billing"], price: 1500, weeks: 2, scopeItem: { title: "Secure payment integration", description: "Card and wallet payments through a PCI-compliant checkout gateway." } },
   { label: "Admin dashboard", keywords: ["admin dashboard", "admin panel", "dashboard", "backoffice", "cms"], price: 2200, weeks: 3, scopeItem: { title: "Admin dashboard for managing content and orders", description: "Back-office screens for content, orders, users and settings." } },
   { label: "User login", keywords: ["login", "log in", "signup", "sign up", "auth", "accounts", "customer accounts"], price: 900, weeks: 1, scopeItem: { title: "User accounts with sign-in and roles", description: "Sign-up/sign-in screens, profiles and role-based access control." } },
@@ -266,7 +316,7 @@ const FEATURES = [
 ];
 
 // COMPLEXITY multiplier by scope size (Basic/Standard/Advanced).
-const COMPLEXITY = {
+const COMPLEXITY: Record<ProjectComplexity, number> = {
   Basic: 0.85,
   Standard: 1,
   Advanced: 1.3,
@@ -281,7 +331,7 @@ const GENERIC_ASSUMPTIONS = [
 // RISKS: what could push the final price UP or DOWN, shown on the result page
 // as "What could change the price". Keyed by project-type key and by feature
 // label; GENERIC_RISKS applies to every estimate.
-const TYPE_RISKS = {
+const TYPE_RISKS: Record<string, string[]> = {
   food: [
     "Driver onboarding, delivery zones and live order support add cost",
     "Payments to restaurants and drivers require a payout setup",
@@ -333,7 +383,7 @@ const TYPE_RISKS = {
   ],
 };
 
-const FEATURE_RISKS = {
+const FEATURE_RISKS: Record<string, string[]> = {
   "Online payment": ["Payment gateway fees and compliance checks may add cost"],
   "Admin dashboard": [
     "Complex permissions and custom reports can extend the timeline",
@@ -368,7 +418,7 @@ const PHYSICAL_RISKS = [
 // Drops near-duplicate risks (e.g. the ecommerce type and the "Online payment"
 // feature both mentioning "Payment gateway fees"). Two entries count as
 // duplicates when they share two or more significant words.
-function dedupeRisks(entries) {
+function dedupeRisks(entries: string[]): string[] {
   const stop = new Set([
     "about", "above", "after", "again", "added", "also", "and", "any", "are",
     "before", "being", "between", "both", "could", "each", "extra", "from",
@@ -377,14 +427,14 @@ function dedupeRisks(entries) {
     "they", "this", "those", "very", "were", "what", "when", "where", "which",
     "while", "with", "would", "your",
   ]);
-  const sig = (text) =>
+  const sig = (text: string) =>
     new Set(
       String(text)
         .toLowerCase()
         .split(/[^a-z]+/)
         .filter((w) => w.length >= 5 && !stop.has(w)),
     );
-  const accepted = [];
+  const accepted: Array<{ words: Set<string>; entry: string }> = [];
   for (const entry of entries) {
     const words = sig(entry);
     const hasDuplicate = accepted.some((existing) => {
@@ -403,7 +453,7 @@ function dedupeRisks(entries) {
 }
 
 
-function normalize(text) {
+function normalize(text: string): string {
   return String(text || "")
     .toLowerCase()
     .replace(/[^a-z0-9\s-]/g, " ")
@@ -417,9 +467,10 @@ function normalize(text) {
 // short default so the UI always has something to show.
 const DEFAULT_SCOPE_DESCRIPTION = "Included in the agreed project scope.";
 
-function sanitizeScopeItem(value) {
+function sanitizeScopeItem(value: unknown): ProjectScopeItem | null {
   if (typeof value !== "object" || value === null) return null;
-  const title = String(value.title ?? "")
+  const source = value as Record<string, unknown>;
+  const title = String(source.title ?? "")
     .replace(/\s+/g, " ")
     .trim()
     .split(" ")
@@ -428,7 +479,7 @@ function sanitizeScopeItem(value) {
     .join(" ")
     .slice(0, 80);
   if (!title) return null;
-  const description = String(value.description ?? "")
+  const description = String(source.description ?? "")
     .replace(/\s+/g, " ")
     .replace(/[$â‚¬Â£Â¥â‚¹]/g, "")
     .trim()
@@ -453,7 +504,7 @@ const SCOPE_TOPIC_ROOTS = [
   "admin",
 ];
 
-function scopeSigWords(text) {
+function scopeSigWords(text: string): Set<string> {
   const stop = new Set([
     "about", "above", "after", "again", "added", "also", "and", "any", "are",
     "before", "being", "between", "both", "could", "each", "extra", "from",
@@ -470,7 +521,7 @@ function scopeSigWords(text) {
   );
 }
 
-function scopeWordsRelated(a, b) {
+function scopeWordsRelated(a: string, b: string): boolean {
   return (
     a === b ||
     (a.length >= 5 && b.length >= 5 && (a.startsWith(b) || b.startsWith(a)))
@@ -481,8 +532,8 @@ function scopeWordsRelated(a, b) {
 // into one list where each feature appears only once. Two items count as
 // the same feature when they share two significant words, or a single
 // significant word from a known overlapping topic (auth, payments, admin...).
-function dedupeScopeItems(items) {
-  const accepted = [];
+function dedupeScopeItems(items: ProjectScopeItem[]): ProjectScopeItem[] {
+  const accepted: Array<{ words: Set<string>; item: ProjectScopeItem }> = [];
   for (const item of items) {
     const words = scopeSigWords(item.title);
     const isDuplicate = accepted.some((prev) => {
@@ -510,12 +561,15 @@ function dedupeScopeItems(items) {
 }
 
 // Small edit-distance so typos ("tyree", "perfum", "ecomerce") still match.
-function distance(a, b) {
+function distance(a: string, b: string): number {
   if (a === b) return 0;
   const m = a.length;
   const n = b.length;
   if (Math.abs(m - n) > 2) return 3;
-  const dp = Array.from({ length: m + 1 }, (_, i) => [i, ...Array(n).fill(0)]);
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) => [
+    i,
+    ...Array<number>(n).fill(0),
+  ]);
   for (let j = 1; j <= n; j++) dp[0][j] = j;
   for (let i = 1; i <= m; i++) {
     for (let j = 1; j <= n; j++) {
@@ -529,7 +583,7 @@ function distance(a, b) {
   return dp[m][n];
 }
 
-function keywordMatches(text, keywords) {
+function keywordMatches(text: string, keywords: string[]): boolean {
   const words = text.split(" ");
   for (const kw of keywords) {
     const kwNorm = normalize(kw);
@@ -555,7 +609,7 @@ function keywordMatches(text, keywords) {
   return false;
 }
 
-function scoreType(text, type) {
+function scoreType(text: string, type: ProjectTypeConfig): number {
   let score = 0;
   for (const kw of type.keywords) {
     const kwNorm = normalize(kw);
@@ -572,7 +626,10 @@ function scoreType(text, type) {
 }
 
 // Best config match for the text using keyword scoring only.
-function pickRuleBasedType(norm) {
+function pickRuleBasedType(norm: string): {
+  type: ProjectTypeConfig;
+  score: number;
+} {
   let type = PROJECT_TYPES[PROJECT_TYPES.length - 1]; // Other fallback
   let score = 0;
   for (const t of PROJECT_TYPES) {
@@ -586,7 +643,7 @@ function pickRuleBasedType(norm) {
   return { type, score };
 }
 
-function toTitleCase(value) {
+function toTitleCase(value: string): string {
   return value
     .split(" ")
     .filter(Boolean)
@@ -594,7 +651,7 @@ function toTitleCase(value) {
     .join(" ");
 }
 
-function extractSubject(rawText, type) {
+function extractSubject(rawText: string, type: ProjectTypeConfig): string {
   let s = String(rawText || "").toLowerCase();
   // Drop common filler prefixes.
   const prefixes = [
@@ -649,7 +706,7 @@ const QUANTITY_KEYS = [
   "squareMeters",
   "kilometers",
   "staff",
-];
+] as const;
 
 // Signals used only when the AI is unavailable. The AI's own `kind` always
 // wins; these keep the offline fallback sensible.
@@ -709,7 +766,10 @@ const SOFTWARE_SIGNALS = [
 
 const SERVICE_TYPES = new Set(["design", "branding", "seo"]);
 
-function detectProjectKind(text, aiKind) {
+function detectProjectKind(
+  text: string,
+  aiKind: AiProjectKind | null,
+): AiProjectKind {
   if (aiKind === "physical" || aiKind === "software" || aiKind === "service") {
     return aiKind;
   }
@@ -721,13 +781,14 @@ function detectProjectKind(text, aiKind) {
 
 // Quantities are the main cost drivers for physical work. Only positive,
 // finite numbers within a sane range survive.
-function sanitizeQuantities(value) {
-  const quantities = {};
+function sanitizeQuantities(value: unknown): AiQuantities {
+  const quantities: AiQuantities = {};
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
     return quantities;
   }
+  const source = value as Record<string, unknown>;
   for (const key of QUANTITY_KEYS) {
-    const amount = Number(value[key]);
+    const amount = Number(source[key]);
     if (Number.isFinite(amount) && amount > 0 && amount <= 10_000_000) {
       quantities[key] = Math.round(amount * 100) / 100;
     }
@@ -735,27 +796,38 @@ function sanitizeQuantities(value) {
   return quantities;
 }
 
-function risksFor(kind, presetType) {
+function risksFor(kind: AiProjectKind, presetType: ProjectTypeConfig): string[] {
   if (kind === "physical") return PHYSICAL_RISKS;
   return TYPE_RISKS[presetType.key] || GENERIC_RISKS;
 }
 
+interface AnalysisMeta {
+  category: string;
+  projectType: string;
+  quantities: AiQuantities;
+  locationHint: string;
+}
+
 function buildAnalysis(
-  type,
-  features,
-  complexity,
-  subject,
-  heading,
-  aiScope,
-  aiAssumptions,
-  aiMeta,
-  kind,
-) {
+  type: ProjectTypeConfig,
+  features: ProjectFeature[],
+  complexity: ProjectComplexity,
+  subject: string,
+  heading: string,
+  aiScope: ProjectScopeItem[],
+  aiAssumptions: string[],
+  aiMeta: AnalysisMeta | null,
+  kind: AiProjectKind,
+): ProjectAnalysis {
   const scopeSource =
     Array.isArray(aiScope) && aiScope.length > 0 ? aiScope : type.scope;
   const scope = dedupeScopeItems([
-    ...scopeSource.map((item) => sanitizeScopeItem(item)).filter(Boolean),
-    ...features.map((f) => sanitizeScopeItem(f.scopeItem)).filter(Boolean),
+    ...scopeSource
+      .map((item) => sanitizeScopeItem(item))
+      .filter((item): item is ProjectScopeItem => item !== null),
+    ...features
+      .map((f) => sanitizeScopeItem(f.scopeItem))
+      .filter((item): item is ProjectScopeItem => item !== null),
   ]).slice(0, 6);
 
   const assumptions = [
@@ -791,12 +863,12 @@ function buildAnalysis(
   };
 }
 
-function analyzeProject(text) {
+function analyzeProject(text: string): ProjectAnalysis {
   const norm = normalize(text);
   const { type } = pickRuleBasedType(norm);
   const features = FEATURES.filter((f) => keywordMatches(norm, f.keywords));
 
-  let complexity = "Standard";
+  let complexity: ProjectComplexity = "Standard";
   if (features.length === 0 && norm.length < 90) complexity = "Basic";
   else if (features.length >= 4 || (features.length >= 2 && norm.length > 200)) {
     complexity = "Advanced";
@@ -824,23 +896,29 @@ function analyzeProject(text) {
 // already sanitized by the server; everything here is defensive so a stale
 // or malformed payload can never break the estimate.
 // ---------------------------------------------------------------------
-const AI_ALLOWED_COMPLEXITY = { Basic: true, Standard: true, Advanced: true };
 const AI_CATEGORY_LIST = Array.from(new Set(PROJECT_TYPES.map((t) => t.category)));
 const AI_PROJECT_TYPE_LIST = PROJECT_TYPES.map((t) => t.projectType);
 
-function matchConfigValue(value, allowed) {
+function matchConfigValue(value: unknown, allowed: string[]): string | null {
   const v = String(value ?? "").trim().toLowerCase();
   if (!v) return null;
   return allowed.find((item) => item.toLowerCase() === v) || null;
 }
 
-function sanitizeAiPhrase(value, maxWords, maxChars) {
+function sanitizeAiPhrase(
+  value: unknown,
+  maxWords: number,
+  maxChars: number,
+): string {
   const raw = String(value ?? "").replace(/\s+/g, " ").trim().slice(0, maxChars).trim();
   if (!raw) return "";
   return raw.split(" ").filter(Boolean).slice(0, maxWords).join(" ");
 }
 
-function analyzeProjectWithAi(text, ai) {
+function analyzeProjectWithAi(
+  text: string,
+  ai?: AiAnalysisPayload | null,
+): ProjectAnalysis {
   if (!ai || typeof ai !== "object" || Array.isArray(ai)) {
     return analyzeProject(text);
   }
@@ -855,25 +933,27 @@ function analyzeProjectWithAi(text, ai) {
     PROJECT_TYPES.find((t) => t.category === category) ||
     ruleBased.type;
 
-  const kind = detectProjectKind(
-    norm,
-    ["physical", "software", "service"].includes(String(ai.kind))
-      ? String(ai.kind)
-      : null,
-  );
+  const aiKind: AiProjectKind | null =
+    ai.kind === "physical" || ai.kind === "software" || ai.kind === "service"
+      ? ai.kind
+      : null;
+  const kind = detectProjectKind(norm, aiKind);
 
   const allowedFeatureLabels = new Set(FEATURES.map((f) => f.label.toLowerCase()));
   const wanted = new Set(
     (Array.isArray(ai.features) ? ai.features : [])
-      .filter((f) => typeof f === "string")
+      .filter((f): f is string => typeof f === "string")
       .map((f) => f.trim().toLowerCase())
       .filter((f) => allowedFeatureLabels.has(f)),
   );
   const features = FEATURES.filter((f) => wanted.has(f.label.toLowerCase()));
 
-  const complexity = AI_ALLOWED_COMPLEXITY[ai.complexity]
-    ? ai.complexity
-    : "Standard";
+  const complexity: ProjectComplexity =
+    ai.complexity === "Basic" ||
+    ai.complexity === "Standard" ||
+    ai.complexity === "Advanced"
+      ? ai.complexity
+      : "Standard";
 
   let subject = sanitizeAiPhrase(ai.subject, 3, 60);
   if (subject) subject = toTitleCase(subject.toLowerCase());
@@ -882,8 +962,10 @@ function analyzeProjectWithAi(text, ai) {
     heading = subject ? `${type.projectType} for ${subject}` : type.projectType;
   }
 
-  const aiScope = Array.isArray(ai.scope)
-    ? ai.scope.map((item) => sanitizeScopeItem(item)).filter(Boolean)
+  const aiScope: ProjectScopeItem[] = Array.isArray(ai.scope)
+    ? ai.scope
+        .map((item) => sanitizeScopeItem(item))
+        .filter((item): item is ProjectScopeItem => item !== null)
     : [];
 
   const aiAssumptions = Array.isArray(ai.assumptions)
