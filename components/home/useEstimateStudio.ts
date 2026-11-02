@@ -166,6 +166,7 @@ export function useEstimateStudio() {
   const [qualityId, setQualityId] = useState<QualityId>("standard");
   const [preparedAnalysis, setPreparedAnalysis] =
     useState<SanitizedAnalysis | null>(null);
+  const [preparedToken, setPreparedToken] = useState<string | null>(null);
   const [questionStep, setQuestionStep] = useState(0);
   const [estimate, setEstimate] = useState<EstimateResult | null>(null);
   const [quoteOpen, setQuoteOpen] = useState(false);
@@ -309,6 +310,7 @@ export function useEstimateStudio() {
     setNeedsInfo(null);
     setShareError("");
     setEstimate(null);
+    setPreparedToken(null);
     setLocationId(targetLocationId);
     try {
       const response = await fetch("/api/analyze", {
@@ -350,13 +352,18 @@ export function useEstimateStudio() {
           ),
         });
         setPreparedAnalysis(null);
+        setPreparedToken(null);
         setStage("describe");
         setQuestionStep(0);
         return;
       }
       const responseBody =
         typeof data === "object" && data !== null
-          ? (data as { status?: unknown; analysis?: unknown })
+          ? (data as {
+              status?: unknown;
+              analysis?: unknown;
+              analysisToken?: unknown;
+            })
           : null;
       if (
         responseBody?.status !== "ready" ||
@@ -366,6 +373,11 @@ export function useEstimateStudio() {
       }
       const analysis = responseBody.analysis;
       setPreparedAnalysis(analysis);
+      setPreparedToken(
+        typeof responseBody.analysisToken === "string"
+          ? responseBody.analysisToken
+          : null,
+      );
       if (analysis.size) setSizeId(analysis.size);
       if (analysis.quality) setQualityId(analysis.quality);
       if (useLocationHint) {
@@ -380,6 +392,7 @@ export function useEstimateStudio() {
     } catch (error) {
       if (controller.signal.aborted && !timedOut) return;
       setPreparedAnalysis(null);
+      setPreparedToken(null);
       setStage("details");
       setQuestionStep(0);
       setEstimateError(
@@ -426,6 +439,7 @@ export function useEstimateStudio() {
           location: targetLocationId,
           size: targetSizeId,
           quality: targetQualityId,
+          ...(preparedToken ? { analysisToken: preparedToken } : {}),
         }),
         signal: controller.signal,
       });
@@ -579,6 +593,7 @@ export function useEstimateStudio() {
     setSizeId("medium");
     setQualityId("standard");
     setPreparedAnalysis(null);
+    setPreparedToken(null);
     setQuestionStep(0);
     setEstimate(null);
     setEstimateError("");
@@ -603,6 +618,7 @@ export function useEstimateStudio() {
       setLoadedDraftId(null);
       setNeedsInfo(null);
       setPreparedAnalysis(null);
+      setPreparedToken(null);
       setQuestionStep(0);
       setEstimate(null);
       if (!description.trim()) setDescription(category.example);
@@ -642,6 +658,7 @@ export function useEstimateStudio() {
     setDescription(value);
     setNeedsInfo(null);
     setPreparedAnalysis(null);
+    setPreparedToken(null);
     setEstimateError("");
   };
 
@@ -652,6 +669,7 @@ export function useEstimateStudio() {
     }
     setCategoryId(id);
     setPreparedAnalysis(null);
+    setPreparedToken(null);
     setEstimateError("");
   };
 
@@ -662,6 +680,7 @@ export function useEstimateStudio() {
     }
     setLocationId(id);
     setLocationSelectedManually(true);
+    setPreparedToken(null);
     setEstimateError("");
   };
 

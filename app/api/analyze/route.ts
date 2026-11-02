@@ -16,6 +16,12 @@ import {
   sanitizeAiResponse,
   type SanitizedAnalysis,
 } from "@/lib/analysisSchema";
+import {
+  analysisContext,
+  createAnalysisToken,
+  MAX_ANALYSIS_TOKEN_CHARS,
+  verifyAnalysisToken,
+} from "@/lib/analysisToken";
 import { callGroq, isGroqConfigured } from "@/lib/groq";
 import { checkRateLimit } from "@/lib/rateLimit";
 
@@ -82,6 +88,7 @@ export async function POST(request: Request) {
   let phase: "prepare" | "estimate" = "estimate";
   let sizeId = "";
   let qualityId = "";
+  let analysisToken = "";
   try {
     const body: unknown = await request.json();
     if (typeof body !== "object" || body === null) {
@@ -102,6 +109,11 @@ export async function POST(request: Request) {
     }
     if (typeof record.size === "string") sizeId = record.size;
     if (typeof record.quality === "string") qualityId = record.quality;
+    if (typeof record.analysisToken === "string") {
+      analysisToken = record.analysisToken
+        .trim()
+        .slice(0, MAX_ANALYSIS_TOKEN_CHARS);
+    }
   } catch {
     return jsonError("Invalid request body.", 400);
   }
@@ -126,61 +138,85 @@ export async function POST(request: Request) {
   }
 
   const knownLocation = resolveKnownLocation(location.id, "");
+  const context = analysisContext(description, category.id, location.id);
   let parsed: SanitizedAnalysis | null = null;
-  if (!isGroqConfigured()) {
-    return jsonError(
-      "Estimate generation is unavailable right now. Please try again later.",
-      503,
-    );
-  }
+  let model: string | null = null;
 
-  const userMessage = [
-    "Project description:",
-    '"""',
-    description,
-    '"""',
-    "",
-    `Pricing location: ${knownLocation || "not provided"}`,
-  ].join("\n");
-
-  const result = await callGroq({
-    messages: [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: userMessage },
-    ],
-    temperature: 0,
-    timeoutMs: 20_000,
-  });
-
-  if (result.content === null) {
-    console.error("[api/analyze] model request failed:", result.error);
-    return jsonError(
-      "We couldn't generate your estimate. Please try again.",
-      502,
-    );
+  // The signed prepare result is bound to this description, category and
+  // location. A valid token lets the estimate phase skip a second model call.
+  if (phase === "estimate" && analysisToken) {
+    const prepared = verifyAnalysisToken(analysisToken, context);
+    if (prepared) {
+      parsed = prepared.analysis;
+      model = prepared.model;
+    }
   }
-
-  const sanitized = sanitizeAiResponse(result.content);
-  if (!sanitized) {
-    console.error(
-      "[api/analyze] invalid model output:",
-      result.content.slice(0, 300),
-    );
-    return jsonError(
-      "We couldn't read the estimate response. Please try again.",
-      502,
-    );
-  }
-  if (sanitized.status === "needs_info") {
-    return NextResponse.json(sanitized);
-  }
-  parsed = sanitized;
 
   if (!parsed) {
-    return jsonError("We couldn't read the project analysis. Please try again.", 502);
+    if (!isGroqConfigured()) {
+      return jsonError(
+        "Estimate generation is unavailable right now. Please try again later.",
+        503,
+      );
+    }
+
+    const userMessage = [
+      "Project description:",
+      '"""',
+      description,
+      '"""',
+      "",
+      `Pricing location: ${knownLocation || "not provided"}`,
+    ].join("\n");
+
+    const result = await callGroq({
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: userMessage },
+      ],
+      temperature: 0,
+      timeoutMs: 20_000,
+    });
+
+    if (result.content === null) {
+      console.error("[api/analyze] model request failed:", result.error);
+      return jsonError(
+        "We couldn't generate your estimate. Please try again.",
+        502,
+      );
+    }
+
+    const sanitized = sanitizeAiResponse(result.content);
+    if (!sanitized) {
+      console.error(
+        "[api/analyze] invalid model output:",
+        result.content.slice(0, 300),
+      );
+      return jsonError(
+        "We couldn't read the estimate response. Please try again.",
+        502,
+      );
+    }
+    if (sanitized.status === "needs_info") {
+      return NextResponse.json(sanitized);
+    }
+    parsed = sanitized;
+    model = result.model;
+  }
+
+  if (!parsed) {
+    return jsonError(
+      "We couldn't read the project analysis. Please try again.",
+      502,
+    );
   }
   if (phase === "prepare") {
-    return NextResponse.json({ status: "ready", analysis: parsed });
+    const token = createAnalysisToken(context, parsed, model);
+    return NextResponse.json({
+      status: "ready",
+      analysis: parsed,
+      ...(token ? { analysisToken: token } : {}),
+    });
   }
 
   const calculated = calculateEstimate(
@@ -195,7 +231,7 @@ export async function POST(request: Request) {
       ...parsed,
       kind: parsed.kind ?? undefined,
       source: "ai",
-      model: result.model,
+      model,
     },
   );
   const estimate = {
