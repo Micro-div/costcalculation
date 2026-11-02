@@ -60,6 +60,8 @@ runtime configuration check):
 | `GROQ_API_KEY` | Yes for estimates | Groq API key. Without it, `POST /api/analyze` returns HTTP 503. |
 | `UPSTASH_REDIS_REST_URL` | Recommended in production | Upstash Redis REST URL for shared rate limiting and durable share links. |
 | `UPSTASH_REDIS_REST_TOKEN` | Recommended in production | Upstash Redis REST token. Keep it secret. |
+| `TRUSTED_IP_HEADER` | No | Header your proxy/platform sets with the real client IP. Defaults to `x-real-ip`. |
+| `ANALYSIS_TOKEN_SECRET` | No | Secret used to sign the prepare-phase analysis. Defaults to `GROQ_API_KEY`. |
 
 `GET /api/health` reports configuration and the pricing update date without
 calling any external service. Its `checks.sharedStorageConfigured` value is
@@ -77,6 +79,14 @@ Without Upstash, the app uses process-local in-memory storage. This is suitable
 for local development only; shared rate limits and share links are not reliable
 across production serverless instances.
 
+### Client IP and rate limiting
+
+Rate limiting keys clients by `TRUSTED_IP_HEADER` (default `x-real-ip`). On
+Vercel that header is set by the platform. When self-hosting, terminate traffic
+at a proxy that **overwrites** the header on every request; otherwise a client
+can rotate it and bypass the limit. Requests without the header share one
+conservative `unknown` bucket, so the limit is never silently disabled.
+
 ## Scripts
 
 | Command | What it does |
@@ -92,15 +102,16 @@ across production serverless instances.
 
 | Route | Purpose |
 | --- | --- |
-| `POST /api/analyze` | `phase: "prepare"` extracts requirements; `phase: "estimate"` returns a server-calculated estimate with prices. Both phases require Groq and return HTTP 503 if `GROQ_API_KEY` is missing. |
+| `POST /api/analyze` | `phase: "prepare"` extracts requirements and returns a short-lived signed analysis token; `phase: "estimate"` reuses that token, calculates the estimate with server-side prices and returns a share id. Both phases return HTTP 503 only when they actually need Groq and `GROQ_API_KEY` is missing. |
 | `POST /api/chat` | Chat about a project. Client text is sent as data, never as system instructions. |
-| `POST /api/share` | Store a computed estimate and return a share id. |
 | `GET /api/share/[id]` | Load the exact stored estimate for a share id. |
 | `GET /api/health` | Configuration/pricing status. |
 
 Share links only carry `?estimate=<id>`. The estimate itself is loaded from the
 server, so a shared page shows the same totals that were shared. Ids are
-validated (`^[A-Za-z0-9_-]{8,64}$`) and expire after 30 days.
+validated (`^[A-Za-z0-9_-]{8,64}$`) and expire after 30 days. Only estimates
+created by `POST /api/analyze` are stored; there is no endpoint for uploading a
+client-supplied estimate.
 
 ## Project layout
 
