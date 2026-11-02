@@ -25,7 +25,8 @@ export async function GET() {
       ok: configured,
       checks,
       pricingUpdatedAt: PRICING_META.lastPricingUpdate,
-      // The AI is optional: the app falls back to the rule-based analyzer.
+      // /api/analyze returns 503 without a key; /api/chat uses its offline
+      // fallback instead.
       aiMode: configured ? "groq" : "unavailable",
     },
     { status: configured ? 200 : 503 },
