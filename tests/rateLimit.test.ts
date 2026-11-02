@@ -33,6 +33,31 @@ describe("clientKey", () => {
       "unknown",
     );
   });
+
+  it("reads the header named by TRUSTED_IP_HEADER", () => {
+    process.env.TRUSTED_IP_HEADER = "cf-connecting-ip";
+    try {
+      expect(
+        clientKey(request({ "cf-connecting-ip": "203.0.113.9" })),
+      ).toBe("203.0.113.9");
+      expect(clientKey(request({ "x-real-ip": "203.0.113.7" }))).toBe(
+        "unknown",
+      );
+    } finally {
+      delete process.env.TRUSTED_IP_HEADER;
+    }
+  });
+
+  it("uses the first address when the trusted header is x-forwarded-for", () => {
+    process.env.TRUSTED_IP_HEADER = "x-forwarded-for";
+    try {
+      expect(
+        clientKey(request({ "x-forwarded-for": "203.0.113.9, 70.41.3.18" })),
+      ).toBe("203.0.113.9");
+    } finally {
+      delete process.env.TRUSTED_IP_HEADER;
+    }
+  });
 });
 
 describe("checkRateLimit (memory fallback)", () => {

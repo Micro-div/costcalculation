@@ -10,8 +10,18 @@ import {
 // instances. Otherwise it falls back to a process-local bucket (fine for local
 // development and single-instance deployments).
 //
-// The bucket key comes from `x-real-ip` ONLY. `x-forwarded-for` is trivially
-// spoofed by clients and must never be trusted for limiting.
+// The bucket key comes from one trusted header only. It defaults to
+// `x-real-ip` (set by Vercel) and can be changed with TRUSTED_IP_HEADER. The
+// host or reverse proxy MUST overwrite that header on every request; a client
+// can otherwise rotate it and bypass the limit. `x-forwarded-for` is NOT
+// trusted by default because clients can spoof it.
+
+const DEFAULT_TRUSTED_IP_HEADER = "x-real-ip";
+
+function trustedIpHeader(): string {
+  const configured = process.env.TRUSTED_IP_HEADER?.trim().toLowerCase();
+  return configured || DEFAULT_TRUSTED_IP_HEADER;
+}
 
 const memoryBuckets = new Map<string, { count: number; resetAt: number }>();
 
@@ -83,9 +93,20 @@ export interface RateLimitResult {
   remaining: number;
 }
 
-/** Uses only `x-real-ip`; unknown clients share one conservative bucket. */
+/**
+ * Reads the configured trusted IP header. Unknown clients share one
+ * conservative bucket so a missing header can never disable the limit.
+ */
 export function clientKey(request: Request): string {
-  return request.headers.get("x-real-ip")?.trim() || "unknown";
+  const header = trustedIpHeader();
+  const value = request.headers.get(header)?.trim();
+  if (!value) return "unknown";
+  // A trusted proxy may pass a comma-separated chain; the first address is
+  // the original client.
+  if (header === "x-forwarded-for") {
+    return value.split(",")[0]?.trim() || "unknown";
+  }
+  return value;
 }
 
 export async function checkRateLimit(
